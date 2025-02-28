@@ -1,0 +1,4 @@
+[submodule "cppcheck/scripts"]
+	path = cppcheck/scripts
+	url = git@gitlab.cross:M0113_Platformers/M0113_CPPCheck.git
+	branch = master

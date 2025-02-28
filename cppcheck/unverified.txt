@@ -1,0 +1,242 @@
+# 
+# TXT
+# 
+# Copyright 2025 MicroEJ Corp. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be found with this software.
+# 
+
+--- CPPCheck unverified lines --
+
+--- ../../src/main/c/src/LLSEC_CIPHER_impl.c
+49 int32_t key_length, uint8_t *iv, int32_t iv_length);
+--- ../../src/main/c/inc/LLSEC_wolfcrypt.h
+27 extern "C" {
+166 }
+--- ../../src/main/c/inc/LLSEC_configuration.h
+--- ../../src/main/c/src/LLSEC_DIGEST_impl.c
+88 {
+89 .name = "MD5",
+90 .init = LLSEC_DIGEST_MD5_init,
+91 .update = LLSEC_DIGEST_MD5_update,
+92 .digest = LLSEC_DIGEST_MD5_digest,
+93 .close = LLSEC_DIGEST_MD5_close,
+94 {
+95 .digest_length = MD5_DIGEST_LENGTH
+96 }
+97 },
+100 {
+101 .name = "SHA-1",
+102 .init = LLSEC_DIGEST_SHA1_init,
+103 .update = LLSEC_DIGEST_SHA1_update,
+104 .digest = LLSEC_DIGEST_SHA1_digest,
+105 .close = LLSEC_DIGEST_SHA1_close,
+106 {
+107 .digest_length = SHA1_DIGEST_LENGTH
+108 }
+109 },
+124 {
+125 .name = "SHA-512",
+126 .init = LLSEC_DIGEST_SHA512_init,
+127 .update = LLSEC_DIGEST_SHA512_update,
+128 .digest = LLSEC_DIGEST_SHA512_digest,
+129 .close = LLSEC_DIGEST_SHA512_close,
+130 {
+131 .digest_length = SHA512_DIGEST_LENGTH
+132 }
+133 }
+140 wc_Md5 md5_ctx;
+143 wc_Sha sha1_ctx;
+149 wc_Sha512 sha512_ctx;
+166 static int LLSEC_DIGEST_MD5_init(void **native_id) {
+167 int return_code = LLSEC_SUCCESS;
+168 LLSEC_DIGEST_DEBUG_TRACE("%s \n", __func__);
+171 wolfcrypt_digest_context_t *md_ctx = LLSEC_calloc(1, sizeof(wc_Md5));
+172 if (NULL == md_ctx) {
+173 return_code = LLSEC_ERROR;
+174 }
+176 if (LLSEC_SUCCESS == return_code) {
+177 int wolfcrypt_rc = wc_InitMd5(&md_ctx->md5_ctx);
+178 if (LLSEC_WOLFCRYPT_SUCCESS != wolfcrypt_rc) {
+179 return_code = LLSEC_ERROR;
+180 }
+181 }
+183 if (LLSEC_SUCCESS != return_code) {
+184 wc_Md5Free(&md_ctx->md5_ctx);
+185 LLSEC_free(md_ctx);
+186 } else {
+188 }
+190 return return_code;
+191 }
+203 static int LLSEC_DIGEST_MD5_digest(void *native_id, uint8_t *out, int32_t *out_length) {
+204 LLSEC_DIGEST_DEBUG_TRACE("%s \n", __func__);
+208 wolfcrypt_digest_context_t *md_ctx = (wolfcrypt_digest_context_t *)native_id;
+209 int wolfcrypt_rc = wc_Md5Final(&md_ctx->md5_ctx, out);
+211 if (LLSEC_WOLFCRYPT_SUCCESS == wolfcrypt_rc) {
+213 }
+215 return wolfcrypt_rc;
+216 }
+228 static int LLSEC_DIGEST_MD5_update(void *native_id, uint8_t *buffer, int32_t buffer_length) {
+229 LLSEC_DIGEST_DEBUG_TRACE("%s \n", __func__);
+233 wolfcrypt_digest_context_t *md_ctx = (wolfcrypt_digest_context_t *)native_id;
+234 int wolfcrypt_rc = wc_Md5Update(&md_ctx->md5_ctx, buffer, buffer_length);
+235 return wolfcrypt_rc;
+236 }
+245 static void  LLSEC_DIGEST_MD5_close(void *native_id) {
+246 LLSEC_DIGEST_DEBUG_TRACE("%s \n", __func__);
+250 wolfcrypt_digest_context_t *md_ctx = (wolfcrypt_digest_context_t *)native_id;
+253 wc_Md5Free(&md_ctx->md5_ctx);
+254 LLSEC_free(md_ctx);
+255 }
+272 static int LLSEC_DIGEST_SHA1_init(void **native_id) {
+273 int return_code = LLSEC_SUCCESS;
+274 LLSEC_DIGEST_DEBUG_TRACE("%s \n", __func__);
+277 wolfcrypt_digest_context_t *md_ctx = LLSEC_calloc(1, sizeof(wc_Sha));
+278 if (NULL == md_ctx) {
+279 return_code = LLSEC_ERROR;
+280 }
+282 if (LLSEC_SUCCESS == return_code) {
+283 int wolfcrypt_rc = wc_InitSha(&md_ctx->sha1_ctx);
+284 if (LLSEC_WOLFCRYPT_SUCCESS != wolfcrypt_rc) {
+285 return_code = LLSEC_ERROR;
+286 }
+287 }
+289 if (LLSEC_SUCCESS != return_code) {
+290 wc_ShaFree(&md_ctx->sha1_ctx);
+291 LLSEC_free(md_ctx);
+292 } else {
+294 }
+296 return return_code;
+297 }
+309 static int LLSEC_DIGEST_SHA1_digest(void *native_id, uint8_t *out, int32_t *out_length) {
+310 LLSEC_DIGEST_DEBUG_TRACE("%s \n", __func__);
+314 wolfcrypt_digest_context_t *md_ctx = (wolfcrypt_digest_context_t *)native_id;
+315 int wolfcrypt_rc = wc_ShaFinal(&md_ctx->sha1_ctx, out);
+317 if (LLSEC_WOLFCRYPT_SUCCESS == wolfcrypt_rc) {
+319 }
+321 return wolfcrypt_rc;
+322 }
+334 static int LLSEC_DIGEST_SHA1_update(void *native_id, uint8_t *buffer, int32_t buffer_length) {
+335 LLSEC_DIGEST_DEBUG_TRACE("%s \n", __func__);
+339 wolfcrypt_digest_context_t *md_ctx = (wolfcrypt_digest_context_t *)native_id;
+340 int wolfcrypt_rc = wc_ShaUpdate(&md_ctx->sha1_ctx, buffer, buffer_length);
+341 return wolfcrypt_rc;
+342 }
+350 static void  LLSEC_DIGEST_SHA1_close(void *native_id) {
+351 LLSEC_DIGEST_DEBUG_TRACE("%s \n", __func__);
+355 wolfcrypt_digest_context_t *md_ctx = (wolfcrypt_digest_context_t *)native_id;
+358 wc_ShaFree(&md_ctx->sha1_ctx);
+359 LLSEC_free(md_ctx);
+360 }
+480 static int LLSEC_DIGEST_SHA512_init(void **native_id) {
+481 int return_code = LLSEC_SUCCESS;
+482 LLSEC_DIGEST_DEBUG_TRACE("%s \n", __func__);
+485 wolfcrypt_digest_context_t *md_ctx = LLSEC_calloc(1, sizeof(wc_Sha512));
+486 if (NULL == md_ctx) {
+487 return_code = LLSEC_ERROR;
+488 }
+490 if (LLSEC_SUCCESS == return_code) {
+491 int wolfcrypt_rc = wc_InitSha512(&md_ctx->sha512_ctx);
+492 if (LLSEC_WOLFCRYPT_SUCCESS != wolfcrypt_rc) {
+493 return_code = LLSEC_ERROR;
+494 }
+495 }
+497 if (LLSEC_SUCCESS != return_code) {
+498 wc_Sha512Free(&md_ctx->sha512_ctx);
+499 LLSEC_free(md_ctx);
+500 } else {
+502 }
+504 return return_code;
+505 }
+517 static int LLSEC_DIGEST_SHA512_digest(void *native_id, uint8_t *out, int32_t *out_length) {
+518 LLSEC_DIGEST_DEBUG_TRACE("%s \n", __func__);
+522 wolfcrypt_digest_context_t *md_ctx = (wolfcrypt_digest_context_t *)native_id;
+523 int wolfcrypt_rc = wc_Sha512Final(&md_ctx->sha512_ctx, out);
+525 if (LLSEC_WOLFCRYPT_SUCCESS == wolfcrypt_rc) {
+527 }
+529 return wolfcrypt_rc;
+530 }
+542 static int LLSEC_DIGEST_SHA512_update(void *native_id, uint8_t *buffer, int32_t buffer_length) {
+543 LLSEC_DIGEST_DEBUG_TRACE("%s \n", __func__);
+547 wolfcrypt_digest_context_t *md_ctx = (wolfcrypt_digest_context_t *)native_id;
+548 int wolfcrypt_rc = wc_Sha512Update(&md_ctx->sha512_ctx, buffer, buffer_length);
+549 return wolfcrypt_rc;
+550 }
+558 static void  LLSEC_DIGEST_SHA512_close(void *native_id) {
+559 LLSEC_DIGEST_DEBUG_TRACE("%s \n", __func__);
+563 wolfcrypt_digest_context_t *md_ctx = (wolfcrypt_digest_context_t *)native_id;
+566 wc_Sha512Free(&md_ctx->sha512_ctx);
+567 LLSEC_free(md_ctx);
+568 }
+--- ../../src/main/c/src/LLSEC_KEY_FACTORY_impl.c
+40 int32_t encoded_key_length);
+42 int32_t encoded_key_length);
+--- ../../src/main/c/src/LLSEC_KEY_PAIR_GENERATOR_impl.c
+--- ../../src/main/c/src/LLSEC_MAC_impl.c
+88 { .name = "HmacSHA224", .type = WC_SHA224, { .mac_length = WC_SHA224_DIGEST_SIZE } },
+94 { .name = "HmacSHA384", .type = WC_SHA384, { .mac_length = WC_SHA384_DIGEST_SIZE } },
+97 { .name = "HmacSHA512", .type = WC_SHA512, { .mac_length = WC_SHA512_DIGEST_SIZE } },
+99 { .name = "HmacSHA512/224", .type = WC_SHA512_224, { .mac_length = WC_SHA224_DIGEST_SIZE } },
+102 { .name = "HmacSHA512/256", .type = WC_SHA512_256, { .mac_length = WC_SHA256_DIGEST_SIZE } },
+107 { .name = "HmacSHA3-224", .type = WC_SHA3_224, { .mac_length = WC_SHA3_224_DIGEST_SIZE } },
+110 { .name = "HmacSHA3-256", .type = WC_SHA3_256, { .mac_length = WC_SHA3_256_DIGEST_SIZE } },
+113 { .name = "HmacSHA3-384", .type = WC_SHA3_384, { .mac_length = WC_SHA3_384_DIGEST_SIZE } },
+116 { .name = "HmacSHA3-512", .type = WC_SHA3_512, { .mac_length = WC_SHA3_512_DIGEST_SIZE } },
+--- ../../src/main/c/src/LLSEC_PRIVATE_KEY_impl.c
+--- ../../src/main/c/src/LLSEC_PUBLIC_KEY_impl.c
+--- ../../src/main/c/src/LLSEC_RANDOM_impl.c
+111 if (RNG_FAILURE_E == wolfcrypt_rc) { // failed to re-seed itself (no entropy source configured?)
+112 LLSEC_RANDOM_DEBUG_TRACE("Re-seeding...");
+113 int entropy_size = LLSEC_RANDOM_SEED_SIZE;
+114 const char *entropy = llsec_gen_random_str_internal(entropy_size);
+115 if (NULL == entropy) {
+116 LLSEC_RANDOM_DEBUG_TRACE("llsec_gen_random_str_internal() failed, keep RNG_FAILURE_E error\n");
+117 } else {
+118 wolfcrypt_rc = wc_RNG_DRBG_Reseed(wolfcrypt_rng, (byte *)entropy, (word32)entropy_size);
+119 LLSEC_free((void *)entropy);
+120 if (LLSEC_WOLFCRYPT_SUCCESS != wolfcrypt_rc) {
+121 LLSEC_RANDOM_DEBUG_TRACE("wc_RNG_DRBG_Reseed() failed: %s\n", wc_GetErrorString(wolfcrypt_rc));
+122 (void)SNI_throwNativeException(wolfcrypt_rc, "Could not re-seed random number generator");
+123 break;
+124 }
+125 }
+126 }
+--- ../../src/main/c/src/LLSEC_RSA_CIPHER_impl.c
+43 int32_t key_id, int32_t padding, int32_t hash);
+--- ../../src/main/c/src/LLSEC_SECRET_KEY_FACTORY_impl.c
+36 int32_t password_length, uint8_t *salt, int32_t salt_length,
+37 int32_t iterations, int32_t key_length);
+62 {
+63 .name = "PBKDF2WithHmacSHA1",
+64 .wc_type = WC_SHA,
+65 .get_key_data = LLSEC_SECRET_KEY_FACTORY_PBKDF2_wolfcrypt_get_key_data,
+66 .key_close = LLSEC_SECRET_KEY_FACTORY_PBKDF2_wolfcrypt_key_close
+67 },
+70 {
+71 .name = "PBKDF2WithHmacSHA224",
+72 .wc_type = WC_SHA224,
+73 .get_key_data = LLSEC_SECRET_KEY_FACTORY_PBKDF2_wolfcrypt_get_key_data,
+74 .key_close = LLSEC_SECRET_KEY_FACTORY_PBKDF2_wolfcrypt_key_close
+75 },
+86 {
+87 .name = "PBKDF2WithHmacSHA384",
+88 .wc_type = WC_SHA384,
+89 .get_key_data = LLSEC_SECRET_KEY_FACTORY_PBKDF2_wolfcrypt_get_key_data,
+90 .key_close = LLSEC_SECRET_KEY_FACTORY_PBKDF2_wolfcrypt_key_close
+91 },
+94 {
+95 .name = "PBKDF2WithHmacSHA512",
+96 .wc_type = WC_SHA512,
+97 .get_key_data = LLSEC_SECRET_KEY_FACTORY_PBKDF2_wolfcrypt_get_key_data,
+98 .key_close = LLSEC_SECRET_KEY_FACTORY_PBKDF2_wolfcrypt_key_close
+99 }
+249 __func__, (int)password_length, (int)salt_length, (int)key_length,
+--- ../../src/main/c/src/LLSEC_SECRET_KEY_impl.c
+--- ../../src/main/c/src/LLSEC_SIG_impl.c
+--- ../../src/main/c/src/LLSEC_wolfcrypt.c
+322 WC_HASH_TYPE_SHAKE128,
+325 WC_HASH_TYPE_SHAKE25,
+328 WC_HASH_TYPE_SM3,
+356 "SHAKE128",
+359 "SHAKE25",
+362 "SM3",
+--- ../../src/main/c/src/LLSEC_X509_CERT_impl.c

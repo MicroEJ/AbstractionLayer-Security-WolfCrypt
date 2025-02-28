@@ -1,15 +1,18 @@
 /**
-* Copyright 2021-2022 MicroEJ Corp. All rights reserved.
-* This library is provided in source code for use, modification and test, subject to license terms.
-* Any modification of the source code will break MicroEJ Corp. warranties on the whole library.
+* Copyright 2023 MicroEJ Corp. All rights reserved.
+* Use of this source code is governed by a BSD-style license that can be found with this software.
 */
 
-buildWithGradle{
-  //MODULE_DIR = ''				// Relative path of the module folder to build. Default value is an empty string, meaning the root folder of the project.
-  //DOCKER_IMAGE = ''				// The image used to execute the build. If not set, Jenkins uses the latest version of the Docker image artifactory.cross:18084/microej/jdk11.
+buildWithMMM{
+  //MODULE_DIR = ''				// The name of the project into which your MODULE_FILENAME is. Default value is : '' . So leave blank if your MODULE_FILENAME is in the root of your gitlab project.
+  //MODULE_FILENAME = ''			// The module filename. Default value is : module.ivy. Set it if yours is different.
+  //LABEL = ''					// The label where build must be run. Default value is : docker if in docker build or generic. Set it if yours is different.
+  DOCKER_IMAGE = 'artifactory.cross:18084/microej/sdk-cco:latest'  // The image used to execute the build. Default value is : microej/sdk:$MMM_VERSION. If empty (set to '') the build is executed without Docker (so directly on the Jenkins node).
   
-  //ARGS  = ''			// Additional arguments passed to the Gradle command line. No additional properties as set by default.
-  //ARTIFACTS_DOMAIN = ''			// The artifacts domain to use. Available values are public, labs-cross, cross-developer, cross. The default value is cross.
+  //MMM_VERSION = ''				// The version of MMM to use. Default value is 5.5.0.
+  ANT_PROPERTIES = '-b=${IVY_SETTINGS_MODULES_REPO_PATH}'			// The properties run with ant. Default value is already set. Add specific properties if necessary. As ('-DnameOfProperties=valueofProperty').
+  //ANT_VERBOSE = ''				// Default value is : false. Set true if you want the verbose mode. 
+  //ARTIFACTS_DOMAIN = ''			// The artifacts domain to use. The default value is cross5.
   
   //PATTERN_JUNIT = ''			// The pattern Junit for test report. This default value is : '**/target~/test/xml/**/*test-report.xml, **/target~/test/xml/**/TEST-*.xml'. Set it if you want to use different one.
   

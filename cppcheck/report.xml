@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+ Copyright 2025 MicroEJ Corp. All rights reserved.
+ Use of this source code is governed by a BSD-style license that can be found with this software.
+-->
+<results version="2">
+    <cppcheck version="2.10"/>
+    <errors>
+    </errors>
+    
+</results>
