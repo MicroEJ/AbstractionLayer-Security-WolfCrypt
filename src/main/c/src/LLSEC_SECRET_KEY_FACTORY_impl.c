@@ -1,7 +1,7 @@
 /*
  * C
  *
- * Copyright 2024 MicroEJ Corp. All rights reserved.
+ * Copyright 2024-2026 MicroEJ Corp. All rights reserved.
  * Use of this source code is governed by a BSD-style license that can be found with this software.
  */
 
@@ -9,7 +9,7 @@
  * @file
  * @brief MicroEJ Security low level API
  * @author MicroEJ Developer Team
- * @version 1.0.0
+ * @version 1.1.0
  */
 
 // --------------------------------------------------------------------------------
@@ -18,14 +18,9 @@
 
 #include <LLSEC_SECRET_KEY_FACTORY_impl.h>
 #include <LLSEC_wolfcrypt.h>
-#include <string.h>
+#include <LLSEC_common.h>
 
-#include <wolfssl/options.h>
-#include <wolfssl/wolfcrypt/settings.h>
-#include <wolfssl/wolfcrypt/rsa.h>
-#include <wolfssl/wolfcrypt/sha256.h>
-#include <wolfssl/wolfcrypt/random.h>
-#include <wolfssl/wolfcrypt/pwdbased.h>
+#include <string.h>
 
 // -----------------------------------------------------------------------------
 // Types
@@ -57,46 +52,46 @@ void        LLSEC_SECRET_KEY_FACTORY_wolfcrypt_free_secret_key(LLSEC_secret_key 
 
 // cppcheck-suppress [misra-c2012-8.9] : Define here for code readability even if it called once in this file.
 static LLSEC_SECRET_KEY_FACTORY_IMPL_algorithm available_algorithms[] = {
-#if WOLF_CONF_SHA1 == 1
+#ifndef NO_SHA
 	{
 		.name = "PBKDF2WithHmacSHA1",
 		.wc_type = WC_SHA,
 		.get_key_data = LLSEC_SECRET_KEY_FACTORY_PBKDF2_wolfcrypt_get_key_data,
 		.key_close = LLSEC_SECRET_KEY_FACTORY_PBKDF2_wolfcrypt_key_close
 	},
-#endif
-#if WOLF_CONF_SHA2_224 == 1
+#endif // NO_SHA
+#ifdef WOLFSSL_SHA224
 	{
 		.name = "PBKDF2WithHmacSHA224",
 		.wc_type = WC_SHA224,
 		.get_key_data = LLSEC_SECRET_KEY_FACTORY_PBKDF2_wolfcrypt_get_key_data,
 		.key_close = LLSEC_SECRET_KEY_FACTORY_PBKDF2_wolfcrypt_key_close
 	},
-#endif
-#if WOLF_CONF_SHA2_256 == 1
+#endif // WOLFSSL_SHA224
+#ifndef NO_SHA256
 	{
 		.name = "PBKDF2WithHmacSHA256",
 		.wc_type = WC_SHA256,
 		.get_key_data = LLSEC_SECRET_KEY_FACTORY_PBKDF2_wolfcrypt_get_key_data,
 		.key_close = LLSEC_SECRET_KEY_FACTORY_PBKDF2_wolfcrypt_key_close
 	},
-#endif
-#if WOLF_CONF_SHA2_384 == 1
+#endif // NO_SHA256
+#ifdef WOLFSSL_SHA384
 	{
 		.name = "PBKDF2WithHmacSHA384",
 		.wc_type = WC_SHA384,
 		.get_key_data = LLSEC_SECRET_KEY_FACTORY_PBKDF2_wolfcrypt_get_key_data,
 		.key_close = LLSEC_SECRET_KEY_FACTORY_PBKDF2_wolfcrypt_key_close
 	},
-#endif
-#if WOLF_CONF_SHA2_512 == 1
+#endif // WOLFSSL_SHA384
+#ifdef WOLFSSL_SHA512
 	{
 		.name = "PBKDF2WithHmacSHA512",
 		.wc_type = WC_SHA512,
 		.get_key_data = LLSEC_SECRET_KEY_FACTORY_PBKDF2_wolfcrypt_get_key_data,
 		.key_close = LLSEC_SECRET_KEY_FACTORY_PBKDF2_wolfcrypt_key_close
 	}
-#endif
+#endif // WOLFSSL_SHA512
 };
 
 /**
@@ -107,10 +102,10 @@ static LLSEC_SECRET_KEY_FACTORY_IMPL_algorithm available_algorithms[] = {
  */
 void LLSEC_SECRET_KEY_FACTORY_wolfcrypt_free_secret_key(LLSEC_secret_key *secret_key) {
 	if (NULL != secret_key->key) {
-		LLSEC_free(secret_key->key);
+		llsec_free(secret_key->key);
 	}
 	if (NULL != secret_key) {
-		LLSEC_free(secret_key);
+		llsec_free(secret_key);
 	}
 }
 
@@ -139,29 +134,30 @@ int32_t LLSEC_SECRET_KEY_FACTORY_PBKDF2_wolfcrypt_get_key_data(LLSEC_secret_key 
 	LLSEC_SECRET_KEY_FACTORY_DEBUG_TRACE("%s \n", __func__);
 
 	int32_t return_code = LLSEC_SUCCESS;
+	WOLFSSL_HEAP_HINT *pHint = llsec_wolfssl_get_heap();
 
 	/* Allocate resources */
-	secret_key->key = LLSEC_calloc(key_length, sizeof(byte));
+	secret_key->key = (uint8_t *)llsec_calloc(key_length, sizeof(uint8_t));
 	if (NULL == secret_key->key) {
-		(void)SNI_throwNativeException(LLSEC_ERROR, "LLSEC_calloc() of the key failed");
+		llsec_throw(LLSEC_ERROR, "LLSEC_CALLOC() of the key failed");
 		return_code = LLSEC_ERROR;
 	}
 
 	/* PKCS#5 PBKDF2 using HMAC */
 	if (LLSEC_SUCCESS == return_code) {
 		secret_key->key_length = key_length;
-		int wolfcrypt_rc = wc_PBKDF2(secret_key->key,
-		                             (const byte *)password,
-		                             (size_t)password_length,
-		                             (byte *)salt,
-		                             (size_t)salt_length,
-		                             (unsigned int)iterations,
-		                             (uint32_t)secret_key->key_length,
-		                             wc_type);
+		int wolfcrypt_rc = wc_PBKDF2_ex(secret_key->key,
+		                                (const byte *)password,
+		                                (size_t)password_length,
+		                                (byte *)salt,
+		                                (size_t)salt_length,
+		                                (unsigned int)iterations,
+		                                (uint32_t)secret_key->key_length,
+		                                wc_type, pHint, INVALID_DEVID);
 		if (LLSEC_WOLFCRYPT_SUCCESS != wolfcrypt_rc) {
 			LLSEC_SECRET_KEY_FACTORY_DEBUG_TRACE("%s wolfcrypt_pkcs5_pbkdf2_hmac() failed (rc = %d)\n", __func__,
 			                                     wolfcrypt_rc);
-			(void)SNI_throwNativeException(wolfcrypt_rc, "wolfcrypt_pkcs5_pbkdf2_hmac() failed");
+			llsec_throw(wolfcrypt_rc, "wolfcrypt_pkcs5_pbkdf2_hmac() failed");
 			return_code = LLSEC_ERROR;
 		}
 	}
@@ -171,7 +167,7 @@ int32_t LLSEC_SECRET_KEY_FACTORY_PBKDF2_wolfcrypt_get_key_data(LLSEC_secret_key 
 		if (SNI_OK != SNI_registerResource((void *)secret_key,
 		                                   (SNI_closeFunction)LLSEC_SECRET_KEY_FACTORY_PBKDF2_wolfcrypt_key_close,
 		                                   NULL)) {
-			(void)SNI_throwNativeException(LLSEC_ERROR, "Can't register SNI native resource");
+			llsec_throw(LLSEC_ERROR, "Can't register SNI native resource");
 			return_code = LLSEC_ERROR;
 		}
 	}
@@ -207,7 +203,7 @@ static void LLSEC_SECRET_KEY_FACTORY_PBKDF2_wolfcrypt_key_close(void *native_id)
 	/* Unregister SNI close callback */
 	if (SNI_OK != SNI_unregisterResource((void *)native_id,
 	                                     (SNI_closeFunction)LLSEC_SECRET_KEY_FACTORY_PBKDF2_wolfcrypt_key_close)) {
-		(void)SNI_throwNativeException(LLSEC_ERROR, "Can't unregister SNI native resource");
+		llsec_throw(LLSEC_ERROR, "Can't unregister SNI native resource");
 	}
 }
 
@@ -250,9 +246,9 @@ int32_t LLSEC_SECRET_KEY_FACTORY_IMPL_get_key_data(int32_t algorithm_id, uint8_t
 	int32_t return_code = LLSEC_ERROR;
 
 	/* Allocate secret key structure */
-	LLSEC_secret_key *secret_key = (LLSEC_secret_key *)LLSEC_calloc(1, sizeof(LLSEC_secret_key));
+	LLSEC_secret_key *secret_key = (LLSEC_secret_key *)llsec_calloc(1, sizeof(LLSEC_secret_key));
 	if (NULL == secret_key) {
-		(void)SNI_throwNativeException(LLSEC_ERROR, "Can't allocate LLSEC_secret_key structure");
+		llsec_throw(LLSEC_ERROR, "Can't allocate LLSEC_secret_key structure");
 	} else {
 		// cppcheck-suppress [misra-c2012-11.4] : Abstract data type for SNI usage
 		LLSEC_SECRET_KEY_FACTORY_IMPL_algorithm *algorithm = (LLSEC_SECRET_KEY_FACTORY_IMPL_algorithm *)algorithm_id;
@@ -272,3 +268,7 @@ int32_t LLSEC_SECRET_KEY_FACTORY_IMPL_get_close_id(int32_t algorithm_id) {
 	// cppcheck-suppress [misra-c2012-11.1] : Abstract data type for SNI usage
 	return (int32_t)algorithm->key_close;
 }
+
+// -----------------------------------------------------------------------------
+// EOF
+// -----------------------------------------------------------------------------

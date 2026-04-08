@@ -1,7 +1,7 @@
 /*
  * C
  *
- * Copyright 2024 MicroEJ Corp. All rights reserved.
+ * Copyright 2024-2026 MicroEJ Corp. All rights reserved.
  * Use of this source code is governed by a BSD-style license that can be found with this software.
  */
 
@@ -9,25 +9,17 @@
  * @file
  * @brief MicroEJ Security low level API implementation for Wolfcrypt Library.
  * @author MicroEJ Developer Team
- * @version 1.0.0
+ * @version 1.1.0
  */
 
 // --------------------------------------------------------------------------------
 // Includes
 // --------------------------------------------------------------------------------
 
+#include <LLSEC_common.h>
 #include <LLSEC_RSA_CIPHER_impl.h>
 #include <LLSEC_ERRORS.h>
 #include <LLSEC_wolfcrypt.h>
-
-#include <wolfssl/options.h>
-#include <wolfssl/wolfcrypt/settings.h>
-#include <wolfssl/wolfcrypt/aes.h>
-#include <wolfssl/wolfcrypt/des3.h>
-#include <wolfssl/wolfcrypt/rsa.h>
-#include <wolfssl/wolfcrypt/sha256.h>
-#include <wolfssl/wolfcrypt/random.h>
-#include <wolfssl/wolfcrypt/pwdbased.h>
 
 #include <sni.h>
 #include <stdint.h>
@@ -93,45 +85,46 @@ static int32_t llsec_rsa_cipher_init(int32_t transformation_id, void **native_id
 	RsaKey *key_ctx = NULL;
 	LLSEC_RSA_CIPHER_ctx *cipher_ctx;
 	LLSEC_RSA_CIPHER_DEBUG_TRACE("%s\n", __func__);
+	WOLFSSL_HEAP_HINT *pHint = llsec_wolfssl_get_heap();
 
-	cipher_ctx = LLSEC_calloc(1, (int32_t)sizeof(LLSEC_RSA_CIPHER_ctx));
+	cipher_ctx = (LLSEC_RSA_CIPHER_ctx *)llsec_calloc(1, (int32_t)sizeof(LLSEC_RSA_CIPHER_ctx));
 	// cppcheck-suppress [misra-c2012-11.4] : Abstract data type for SNI usage
 	cipher_ctx->transformation = (LLSEC_RSA_CIPHER_transformation *)transformation_id;
 
 	if ((uint8_t)0 != is_decrypting) {
 		// cppcheck-suppress [misra-c2012-11.4] : Abstract data type for SNI usage
 		LLSEC_priv_key *key = (LLSEC_priv_key *)key_id;
-		key_ctx = (RsaKey *)key->key;
+		key_ctx = (RsaKey *)key->any_key;
 	} else {
 		// cppcheck-suppress [misra-c2012-11.4] : Abstract data type for SNI usage
 		LLSEC_pub_key *key = (LLSEC_pub_key *)key_id;
-		key_ctx = (RsaKey *)key->key;
+		key_ctx = (RsaKey *)key->any_key;
 	}
 
 	cipher_ctx->rsa_ctx = key_ctx;
 
 	if (LLSEC_WOLFCRYPT_SUCCESS != wolfcrypt_rc) {
-		(void)SNI_throwNativeException(wolfcrypt_rc, "wc_InitRsaKey failed");
+		llsec_throw(wolfcrypt_rc, "wc_InitRsaKey failed");
 		return_code = LLSEC_ERROR;
 	}
 
 	if (LLSEC_SUCCESS == return_code) {
 		WC_RNG *wolfcrypt_rng;
 		char *pers = llsec_gen_random_str_internal(8);
-		wolfcrypt_rng = wc_rng_new((byte *)pers, (word32)strlen(pers), NULL);
+		wolfcrypt_rng = wc_rng_new((byte *)pers, (word32)strlen(pers), pHint);
 
 		if (NULL == wolfcrypt_rng) {
-			(void)SNI_throwNativeException(wolfcrypt_rc, "Failed to initialize random number generator for RSA Cipher");
+			llsec_throw(wolfcrypt_rc, "Failed to initialize random number generator for RSA Cipher");
 			wc_rng_free(wolfcrypt_rng);
 
-			LLSEC_free((void *)pers);
+			llsec_free((void *)pers);
 			return_code = LLSEC_ERROR;
 		} else {
-			wolfcrypt_rc = wc_InitRng(wolfcrypt_rng);
+			wolfcrypt_rc = wc_InitRng_ex(wolfcrypt_rng, pHint, INVALID_DEVID);
 			wolfcrypt_rc += wc_RsaSetRNG(cipher_ctx->rsa_ctx, wolfcrypt_rng);
 			cipher_ctx->rng_ctx = wolfcrypt_rng;
 			if (LLSEC_WOLFCRYPT_SUCCESS != wolfcrypt_rc) {
-				(void)SNI_throwNativeException(wolfcrypt_rc, "Failed to set random number generator for RSA");
+				llsec_throw(wolfcrypt_rc, "Failed to set random number generator for RSA");
 				return_code = LLSEC_ERROR;
 			}
 		}
@@ -184,7 +177,7 @@ static int32_t llsec_rsa_cipher_decrypt(void *native_id, uint8_t *buffer, int32_
 	if (LLSEC_WOLFCRYPT_SUCCESS <= wolfcrypt_rc) {
 		return_code = wolfcrypt_rc;
 	} else {
-		(void)SNI_throwNativeException(wolfcrypt_rc, "llsec_rsa_cipher_decrypt failed");
+		llsec_throw(wolfcrypt_rc, "llsec_rsa_cipher_decrypt failed");
 		return_code = LLSEC_ERROR;
 	}
 
@@ -228,7 +221,7 @@ static int32_t llsec_rsa_cipher_encrypt(void *native_id, uint8_t *buffer, int32_
 	if (LLSEC_WOLFCRYPT_SUCCESS <= wolfcrypt_rc) {
 		return_code = wolfcrypt_rc;
 	} else {
-		(void)SNI_throwNativeException(wolfcrypt_rc, "llsec_rsa_cipher_encrypt failed");
+		llsec_throw(wolfcrypt_rc, "llsec_rsa_cipher_encrypt failed");
 		return_code = LLSEC_ERROR;
 	}
 
@@ -246,7 +239,7 @@ static void llsec_rsa_cipher_close(void *native_id) {
 	// cppcheck-suppress [misra-c2012-11.5] : Abstract data type for SNI usage
 	LLSEC_RSA_CIPHER_ctx *cipher_ctx = (LLSEC_RSA_CIPHER_ctx *)native_id;
 	wc_FreeRng(cipher_ctx->rng_ctx);
-	LLSEC_free(native_id);
+	llsec_free(native_id);
 }
 
 // --------------------------------------------------------------------------------
@@ -260,7 +253,20 @@ int32_t LLSEC_RSA_CIPHER_IMPL_get_transformation_description(uint8_t *transforma
 	int32_t return_code = LLSEC_ERROR;
 	LLSEC_RSA_CIPHER_DEBUG_TRACE("%s transformation_name %s\n", __func__, transformation_name);
 
-	static LLSEC_RSA_CIPHER_transformation available_transformations[3] = {
+	static LLSEC_RSA_CIPHER_transformation available_transformations[] = {
+#if defined(NO_RSA)
+		{
+			.name = "",
+			.init = NULL,
+			.decrypt = NULL,
+			.encrypt = NULL,
+			.close = NULL,
+			.description = {
+				.padding_type = 0,
+				.oaep_hash_algorithm = 0,
+			},
+		}
+#else
 		{
 			.name = "RSA/ECB/PKCS1Padding",
 			.init = llsec_rsa_cipher_init,
@@ -293,7 +299,8 @@ int32_t LLSEC_RSA_CIPHER_IMPL_get_transformation_description(uint8_t *transforma
 				.padding_type = PAD_OAEP_MGF1_TYPE,
 				.oaep_hash_algorithm = OAEP_HASH_SHA_256_ALGORITHM,
 			},
-		}
+		},
+#endif // NO_RSA
 	};
 
 	int32_t nb_transformations = sizeof(available_transformations) / sizeof(LLSEC_RSA_CIPHER_transformation);
@@ -323,31 +330,30 @@ int32_t LLSEC_RSA_CIPHER_IMPL_init(int32_t transformation_id, uint8_t is_decrypt
 	void *native_id = NULL;
 	// cppcheck-suppress [misra-c2012-11.4] : Abstract data type for SNI usage
 	LLSEC_RSA_CIPHER_transformation *transformation = (LLSEC_RSA_CIPHER_transformation *)transformation_id;
-	LLSEC_RSA_CIPHER_padding_type type = (LLSEC_RSA_CIPHER_padding_type)padding_type;
-	LLSEC_RSA_CIPHER_oaep_hash_algorithm oaep_hash = (LLSEC_RSA_CIPHER_oaep_hash_algorithm)oaep_hash_algorithm;
 
 	if (0 == key_id) {
-		(void)SNI_throwNativeException(key_id, "LLSEC_RSA_CIPHER_IMPL_init invalid key_id");
+		llsec_throw(key_id, "LLSEC_RSA_CIPHER_IMPL_init invalid key_id");
 		return_code = LLSEC_ERROR;
 	}
 
-	if ((PAD_PKCS1_TYPE != type) && (PAD_OAEP_MGF1_TYPE != type)) {
-		(void)SNI_throwNativeException(type, "LLSEC_RSA_CIPHER_IMPL_init invalid padding_type");
+	if ((PAD_PKCS1_TYPE != (uint32_t)padding_type) && (PAD_OAEP_MGF1_TYPE != (uint32_t)padding_type)) {
+		llsec_throw(padding_type, "LLSEC_RSA_CIPHER_IMPL_init invalid padding_type");
 		return_code = LLSEC_ERROR;
 	}
 
-	if ((PAD_OAEP_MGF1_TYPE == type) && (OAEP_HASH_SHA_1_ALGORITHM != oaep_hash) &&
-	    (OAEP_HASH_SHA_256_ALGORITHM != oaep_hash)) {
-		(void)SNI_throwNativeException(oaep_hash, "LLSEC_RSA_CIPHER_IMPL_init invalid oaep_hash_algorithm");
+	if ((PAD_OAEP_MGF1_TYPE == (uint32_t)padding_type) &&
+	    (OAEP_HASH_SHA_1_ALGORITHM != (uint32_t)oaep_hash_algorithm) &&
+	    (OAEP_HASH_SHA_256_ALGORITHM != (uint32_t)oaep_hash_algorithm)) {
+		llsec_throw(oaep_hash_algorithm, "LLSEC_RSA_CIPHER_IMPL_init invalid oaep_hash_algorithm");
 		return_code = LLSEC_ERROR;
 	}
 
 	if (LLSEC_SUCCESS == return_code) {
-		return_code = transformation->init(transformation_id, (void **)&native_id, is_decrypting, key_id, type,
-		                                   oaep_hash);
+		return_code = transformation->init(transformation_id, (void **)&native_id, is_decrypting, key_id, padding_type,
+		                                   oaep_hash_algorithm);
 
 		if (LLSEC_SUCCESS != return_code) {
-			(void)SNI_throwNativeException(return_code, "LLSEC_RSA_CIPHER_IMPL_init failed");
+			llsec_throw(return_code, "LLSEC_RSA_CIPHER_IMPL_init failed");
 			return_code = LLSEC_ERROR;
 		}
 	}
@@ -355,7 +361,7 @@ int32_t LLSEC_RSA_CIPHER_IMPL_init(int32_t transformation_id, uint8_t is_decrypt
 	if (LLSEC_SUCCESS == return_code) {
 		// register SNI native resource
 		if (SNI_OK != SNI_registerResource(native_id, transformation->close, NULL)) {
-			(void)SNI_throwNativeException(LLSEC_ERROR, "Can't register SNI native resource");
+			llsec_throw(LLSEC_ERROR, "Can't register SNI native resource");
 			transformation->close((void *)native_id);
 			return_code = LLSEC_ERROR;
 		}
@@ -380,7 +386,7 @@ int32_t LLSEC_RSA_CIPHER_IMPL_decrypt(int32_t transformation_id, int32_t native_
 	int32_t return_code = transformation->decrypt((void *)native_id, &buffer[buffer_offset], buffer_length,
 	                                              &output[output_offset]);
 	if (0 > return_code) {
-		(void)SNI_throwNativeException(return_code, "LLSEC_RSA_CIPHER_IMPL_decrypt failed");
+		llsec_throw(return_code, "LLSEC_RSA_CIPHER_IMPL_decrypt failed");
 		return_code = LLSEC_ERROR;
 	}
 	return return_code;
@@ -397,7 +403,7 @@ int32_t LLSEC_RSA_CIPHER_IMPL_encrypt(int32_t transformation_id, int32_t native_
 	int32_t return_code = transformation->encrypt((void *)native_id, &buffer[buffer_offset], buffer_length,
 	                                              &output[output_offset]);
 	if (0 > return_code) {
-		(void)SNI_throwNativeException(return_code, "LLSEC_RSA_CIPHER_IMPL_encrypt failed");
+		llsec_throw(return_code, "LLSEC_RSA_CIPHER_IMPL_encrypt failed");
 		return_code = LLSEC_ERROR;
 	}
 	return return_code;
@@ -414,7 +420,7 @@ void LLSEC_RSA_CIPHER_IMPL_close(int32_t transformation_id, int32_t native_id) {
 	// cppcheck-suppress [misra-c2012-11.1] : Abstract data type for SNI usage
 	// cppcheck-suppress [misra-c2012-11.6] : Abstract data type for SNI usage
 	if (SNI_OK != SNI_unregisterResource((void *)native_id, (SNI_closeFunction)transformation->close)) {
-		(void)SNI_throwNativeException(LLSEC_ERROR, "Can't unregister SNI native resource");
+		llsec_throw(LLSEC_ERROR, "Can't unregister SNI native resource");
 	}
 }
 
@@ -427,3 +433,7 @@ int32_t LLSEC_RSA_CIPHER_IMPL_get_close_id(int32_t transformation_id) {
 	// cppcheck-suppress [misra-c2012-11.1] : Abstract data type for SNI usage
 	return (int32_t)transformation->close;
 }
+
+// -----------------------------------------------------------------------------
+// EOF
+// -----------------------------------------------------------------------------

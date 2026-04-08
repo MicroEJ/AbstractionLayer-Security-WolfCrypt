@@ -1,5 +1,5 @@
 /*
- * Copyright 2024-2025 MicroEJ Corp. All rights reserved.
+ * Copyright 2024-2026 MicroEJ Corp. All rights reserved.
  * Use of this source code is governed by a BSD-style license that can be found with this software.
  */
 
@@ -7,7 +7,7 @@
  * @file
  * @brief LLSECURITY implementation for WolfCrypt - MAC.
  * @author MicroEJ Developer Team
- * @version 1.0.0
+ * @version 1.1.0
  */
 
 // --------------------------------------------------------------------------------
@@ -16,15 +16,7 @@
 
 #include <LLSEC_ERRORS.h>
 #include <LLSEC_MAC_impl.h>
-#include <LLSEC_wolfcrypt.h>
-
-#include <wolfssl/options.h>
-#include <wolfssl/wolfcrypt/settings.h>
-#include <wolfssl/wolfcrypt/hmac.h>
-#include <wolfssl/wolfcrypt/sha256.h>
-#include <wolfssl/wolfcrypt/random.h>
-#include <wolfssl/wolfcrypt/pwdbased.h>
-#include <wolfssl/wolfcrypt/error-crypt.h>
+#include <LLSEC_common.h>
 
 #include <sni.h>
 #include <stdint.h>
@@ -61,12 +53,13 @@ static void llsec_mac_close(void *native_id);
  *
  */
 void llsec_mac_close(void *native_id) {
-	LLSEC_MAC_DEBUG_TRACE("%s(id=%d)\n", __func__, native_id);
+	LLSEC_MAC_DEBUG_TRACE("%s(id=%p)\n", __func__, native_id);
 	// cppcheck-suppress [misra-c2012-11.5] : Abstract data type for SNI usage
 	LLSEC_MAC *mac = (LLSEC_MAC *)native_id;
+
 	wc_HmacFree(&mac->hmac);
-	LLSEC_free(mac->key);
-	LLSEC_free(mac);
+	llsec_free(mac->key);
+	llsec_free(mac);
 }
 
 // --------------------------------------------------------------------------------
@@ -123,7 +116,7 @@ int32_t LLSEC_MAC_IMPL_get_algorithm_description(uint8_t *algorithm_name, LLSEC_
 	int32_t nb_algorithms = sizeof(available_mac_algorithms) / sizeof(LLSEC_MAC_algorithm);
 	while (--nb_algorithms >= 0) {
 		if (0 == strcmp((const char *)algorithm_name, algorithm->name)) {
-			(void)memcpy(algorithm_desc, &(algorithm->description), sizeof(LLSEC_MAC_algorithm_desc));
+			llsec_memcpy(algorithm_desc, &(algorithm->description), sizeof(LLSEC_MAC_algorithm_desc));
 			// cppcheck-suppress [misra-c2012-11.4] : Abstract data type for SNI usage
 			return_code = (int32_t)algorithm;
 			break;
@@ -140,27 +133,29 @@ int32_t LLSEC_MAC_IMPL_init(int32_t algorithm_id, uint8_t *key, int32_t key_leng
 	LLSEC_MAC_algorithm *algorithm = (LLSEC_MAC_algorithm *)algorithm_id;
 	int32_t return_code = LLSEC_SUCCESS;
 	int32_t wolfcrypt_rc;
+	WOLFSSL_HEAP_HINT *pHint = llsec_wolfssl_get_heap();
 
-	LLSEC_MAC *mac = LLSEC_calloc(1, sizeof(LLSEC_MAC));
+	LLSEC_MAC *mac = llsec_calloc(1, sizeof(LLSEC_MAC));
 	if (NULL == mac) {
-		(void)SNI_throwNativeException(-1, "Could not allocate MAC buffers");
+		llsec_throw(LLSEC_ERROR, "Could not allocate MAC buffers");
 		return_code = LLSEC_ERROR;
 	} else {
-		mac->key = (byte *)LLSEC_calloc(1, key_length);
+		mac->key = llsec_calloc(1, key_length);
+		;
 		if (NULL == mac->key) {
-			(void)SNI_throwNativeException(-2, "Could not allocate MAC buffers");
+			llsec_throw(LLSEC_ERROR_OOM, "Could not allocate MAC buffers");
 			return_code = LLSEC_ERROR;
 		} else {
-			(void)memcpy(mac->key, key, key_length);
+			llsec_memcpy(mac->key, key, key_length);
 			mac->key_length = key_length;
 		}
 	}
 
 	if (LLSEC_SUCCESS == return_code) {
-		wolfcrypt_rc = wc_HmacInit(&mac->hmac, NULL, INVALID_DEVID);
+		wolfcrypt_rc = wc_HmacInit(&mac->hmac, pHint, INVALID_DEVID);
 		if (LLSEC_WOLFCRYPT_SUCCESS != wolfcrypt_rc) {
 			LLSEC_RANDOM_DEBUG_TRACE("wc_HmacInit() failed: %s\n", wc_GetErrorString(wolfcrypt_rc));
-			(void)SNI_throwNativeException(wolfcrypt_rc, "Could not initialize HMAC");
+			llsec_throw(wolfcrypt_rc, "Could not initialize HMAC");
 			return_code = LLSEC_ERROR;
 		}
 	}
@@ -169,7 +164,7 @@ int32_t LLSEC_MAC_IMPL_init(int32_t algorithm_id, uint8_t *key, int32_t key_leng
 		wolfcrypt_rc = wc_HmacSetKey(&mac->hmac, algorithm->type, key, key_length);
 		if (LLSEC_WOLFCRYPT_SUCCESS != wolfcrypt_rc) {
 			LLSEC_RANDOM_DEBUG_TRACE("wc_HmacSetKey() failed: %s\n", wc_GetErrorString(wolfcrypt_rc));
-			(void)SNI_throwNativeException(wolfcrypt_rc, "Could not initialize HMAC key");
+			llsec_throw(wolfcrypt_rc, "Could not initialize HMAC key");
 			return_code = LLSEC_ERROR;
 		}
 	}
@@ -180,15 +175,15 @@ int32_t LLSEC_MAC_IMPL_init(int32_t algorithm_id, uint8_t *key, int32_t key_leng
 		native_id = (int32_t)mac;
 		// cppcheck-suppress [misra-c2012-11.6] : Abstract data type for SNI usage
 		if (SNI_OK != SNI_registerResource((void *)native_id, (SNI_closeFunction)llsec_mac_close, NULL)) {
-			(void)SNI_throwNativeException(-1, "Could not register SNI native resource");
+			llsec_throw(LLSEC_ERROR, "Could not register SNI native resource");
 			return_code = LLSEC_ERROR;
 		}
 	}
 
 	if (LLSEC_SUCCESS != return_code) {
 		wc_HmacFree(&mac->hmac);
-		LLSEC_free(mac->key);
-		LLSEC_free(mac);
+		llsec_free(mac->key);
+		llsec_free(mac);
 	} else {
 		return_code = (int32_t)native_id;
 	}
@@ -209,7 +204,7 @@ void LLSEC_MAC_IMPL_update(int32_t algorithm_id, int32_t native_id, uint8_t *buf
 	int wolfcrypt_rc = wc_HmacUpdate(&mac->hmac, &buffer[buffer_offset], buffer_length);
 	if (LLSEC_WOLFCRYPT_SUCCESS != wolfcrypt_rc) {
 		LLSEC_RANDOM_DEBUG_TRACE("wc_HmacUpdate() failed: %s\n", wc_GetErrorString(wolfcrypt_rc));
-		(void)SNI_throwNativeException(wolfcrypt_rc, "HMAC update operation failed");
+		llsec_throw(wolfcrypt_rc, "HMAC update operation failed");
 	}
 }
 
@@ -231,16 +226,16 @@ void LLSEC_MAC_IMPL_do_final(int32_t algorithm_id, int32_t native_id, uint8_t *o
 	LLSEC_MAC_DEBUG_TRACE("%s(alg=%d, id=%d, off=%d, len=%d)\n", __func__, algorithm_id, native_id, out_offset,
 	                      out_length);
 	// cppcheck-suppress [misra-c2012-11.4] : Abstract data type for SNI usage
-	LLSEC_MAC_algorithm *algorithm = (LLSEC_MAC_algorithm *)algorithm_id;
+	const LLSEC_MAC_algorithm *algorithm = (LLSEC_MAC_algorithm *)algorithm_id;
 	// cppcheck-suppress [misra-c2012-11.4] : Abstract data type for SNI usage
 	LLSEC_MAC *mac = (LLSEC_MAC *)native_id;
 	if (((uint32_t)out_length) < algorithm->description.mac_length) {
-		(void)SNI_throwNativeException(-1, "Internal error: buffer too small");
+		llsec_throw(LLSEC_ERROR, "Internal error: buffer too small");
 	} else {
 		int wolfcrypt_rc = wc_HmacFinal(&mac->hmac, &out[out_offset]);
 		if (LLSEC_SUCCESS != wolfcrypt_rc) {
 			LLSEC_RANDOM_DEBUG_TRACE("wc_HmacFinal() failed: %s\n", wc_GetErrorString(wolfcrypt_rc));
-			(void)SNI_throwNativeException(wolfcrypt_rc, "HMAC final operation failed");
+			llsec_throw(wolfcrypt_rc, "HMAC final operation failed");
 		}
 	}
 }
@@ -262,7 +257,7 @@ void LLSEC_MAC_IMPL_reset(int32_t algorithm_id, int32_t native_id) {
 	int wolfcrypt_rc = wc_HmacSetKey(&mac->hmac, algorithm->type, mac->key, mac->key_length);
 	if (LLSEC_WOLFCRYPT_SUCCESS != wolfcrypt_rc) {
 		LLSEC_RANDOM_DEBUG_TRACE("wc_HmacSetKey() failed: %s\n", wc_GetErrorString(wolfcrypt_rc));
-		(void)SNI_throwNativeException(wolfcrypt_rc, "LLSEC_MAC_IMPL_reset failed");
+		llsec_throw(wolfcrypt_rc, "LLSEC_MAC_IMPL_reset failed");
 	}
 }
 
@@ -279,12 +274,13 @@ void LLSEC_MAC_IMPL_close(int32_t algorithm_id, int32_t native_id) {
 	LLSEC_UNUSED_PARAM(algorithm_id);
 	// cppcheck-suppress [misra-c2012-11.4] : Abstract data type for SNI usage
 	LLSEC_MAC *mac = (LLSEC_MAC *)native_id;
+
 	wc_HmacFree(&mac->hmac);
-	LLSEC_free(mac->key);
-	LLSEC_free(mac);
+	llsec_free(mac->key);
+	llsec_free(mac);
 	// cppcheck-suppress [misra-c2012-11.6] : Abstract data type for SNI usage
 	if (SNI_OK != SNI_unregisterResource((void *)native_id, (SNI_closeFunction)llsec_mac_close)) {
-		(void)SNI_throwNativeException(-1, "Could not unregister SNI native resource\n");
+		llsec_throw(LLSEC_ERROR, "Could not unregister SNI native resource\n");
 	}
 }
 
@@ -302,3 +298,7 @@ int32_t LLSEC_MAC_IMPL_get_close_id(int32_t algorithm_id) {
 	LLSEC_UNUSED_PARAM(algorithm_id);
 	return (int32_t)llsec_mac_close;
 }
+
+// -----------------------------------------------------------------------------
+// EOF
+// -----------------------------------------------------------------------------

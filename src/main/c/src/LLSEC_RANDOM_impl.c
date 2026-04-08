@@ -1,5 +1,5 @@
 /*
- * Copyright 2024-2025 MicroEJ Corp. All rights reserved.
+ * Copyright 2024-2026 MicroEJ Corp. All rights reserved.
  * Use of this source code is governed by a BSD-style license that can be found with this software.
  */
 
@@ -7,7 +7,7 @@
  * @file
  * @brief LLSECURITY implementation for WolfCrypt - Pseudo Random Number Generators.
  * @author MicroEJ Developer Team
- * @version 1.0.0
+ * @version 1.1.0
  */
 
 // --------------------------------------------------------------------------------
@@ -18,18 +18,11 @@
 #include <LLSEC_RANDOM_impl.h>
 #include <microej_time.h>
 #include <LLSEC_wolfcrypt.h>
+#include <LLSEC_common.h>
 
 #include <sni.h>
 #include <stdlib.h>
 #include <string.h>
-
-#include <wolfssl/options.h>
-#include <wolfssl/wolfcrypt/settings.h>
-#include <wolfssl/wolfcrypt/aes.h>
-#include <wolfssl/wolfcrypt/sha256.h>
-#include <wolfssl/wolfcrypt/random.h>
-#include <wolfssl/wolfcrypt/pwdbased.h>
-#include <wolfssl/wolfcrypt/error-crypt.h>
 
 // --------------------------------------------------------------------------------
 // LLSEC_RANDOM_impl.h functions
@@ -40,16 +33,20 @@ int32_t LLSEC_RANDOM_IMPL_init(void) {
 	LLSEC_RANDOM_DEBUG_TRACE("%s()\n", __func__);
 	int32_t return_code = LLSEC_SUCCESS;
 	int32_t native_id;
-	int32_t wolfcrypt_rc = 0;
 	WC_RNG *wolfcrypt_rng = NULL;
+	WOLFSSL_HEAP_HINT *pHint = llsec_wolfssl_get_heap();
 
 	int nonce_size = LLSEC_RANDOM_SEED_SIZE;
 	char *nonce = llsec_gen_random_str_internal(nonce_size);
 	if (NULL == nonce) {
-		(void)SNI_throwNativeException(LLSEC_ERROR, "Could not allocate seed buffer");
+		llsec_throw(LLSEC_ERROR, "Could not allocate seed buffer");
 		return_code = LLSEC_ERROR;
 	} else {
-		wolfcrypt_rng = wc_rng_new((byte *)nonce, (word32)nonce_size, NULL);
+		wolfcrypt_rng = wc_rng_new((byte *)nonce, (word32)nonce_size, pHint);
+		if (NULL == wolfcrypt_rng) {
+			llsec_throw(LLSEC_ERROR, "Could not initialize RNG");
+			return_code = LLSEC_ERROR;
+		}
 	}
 
 	if (LLSEC_SUCCESS == return_code) {
@@ -57,24 +54,25 @@ int32_t LLSEC_RANDOM_IMPL_init(void) {
 
 		// cppcheck-suppress [misra-c2012-11.6] : Abstract data type for SNI usage
 		if (SNI_OK != SNI_registerResource((void *)native_id, (SNI_closeFunction)LLSEC_RANDOM_IMPL_close, NULL)) {
-			(void)SNI_throwNativeException(LLSEC_ERROR, "Could not register SNI native resource");
+			llsec_throw(LLSEC_ERROR, "Could not register SNI native resource");
 			return_code = LLSEC_ERROR;
 		}
 	}
 
 	if (NULL != nonce) {
-		LLSEC_free((void *)nonce);
+		llsec_free((void *)nonce);
 	}
 
 	if (LLSEC_SUCCESS == return_code) {
 		return_code = native_id;
-		LLSEC_RANDOM_DEBUG_TRACE("%s() => %d\n", __func__, native_id);
 	} else {
+		return_code = SNI_IGNORED_RETURNED_VALUE;
 		if (NULL != wolfcrypt_rng) {
 			wc_rng_free(wolfcrypt_rng);
 		}
 	}
 
+	LLSEC_RANDOM_DEBUG_TRACE("%s() => %d\n", __func__, return_code);
 	return return_code;
 }
 
@@ -95,7 +93,8 @@ void LLSEC_RANDOM_IMPL_next_bytes(int32_t native_id, uint8_t *rnd, int32_t size)
 	uint32_t bytes_left = (uint32_t)size;
 	uint32_t rnd_index = 0;
 
-	while ((uint32_t)0 < bytes_left) {
+	bool is_leaving_loop = false;
+	while (((uint32_t)0 < bytes_left) && !is_leaving_loop) {
 		int wolfcrypt_rc = LLSEC_WOLFCRYPT_SUCCESS;
 		if ((uint32_t)RNG_MAX_BLOCK_LEN < bytes_left) {
 			wolfcrypt_rc = wc_RNG_GenerateBlock(wolfcrypt_rng, &rnd[rnd_index], RNG_MAX_BLOCK_LEN);
@@ -111,22 +110,22 @@ void LLSEC_RANDOM_IMPL_next_bytes(int32_t native_id, uint8_t *rnd, int32_t size)
 			if (RNG_FAILURE_E == wolfcrypt_rc) { // failed to re-seed itself (no entropy source configured?)
 				LLSEC_RANDOM_DEBUG_TRACE("Re-seeding...");
 				int entropy_size = LLSEC_RANDOM_SEED_SIZE;
-				const char *entropy = llsec_gen_random_str_internal(entropy_size);
+				char *entropy = llsec_gen_random_str_internal(entropy_size);
 				if (NULL == entropy) {
 					LLSEC_RANDOM_DEBUG_TRACE("llsec_gen_random_str_internal() failed, keep RNG_FAILURE_E error\n");
 				} else {
 					wolfcrypt_rc = wc_RNG_DRBG_Reseed(wolfcrypt_rng, (byte *)entropy, (word32)entropy_size);
-					LLSEC_free((void *)entropy);
+					llsec_free((void *)entropy);
 					if (LLSEC_WOLFCRYPT_SUCCESS != wolfcrypt_rc) {
 						LLSEC_RANDOM_DEBUG_TRACE("wc_RNG_DRBG_Reseed() failed: %s\n", wc_GetErrorString(wolfcrypt_rc));
-						(void)SNI_throwNativeException(wolfcrypt_rc, "Could not re-seed random number generator");
+						llsec_throw(wolfcrypt_rc, "Could not re-seed random number generator");
 						break;
 					}
 				}
 			}
 #endif
-			(void)SNI_throwNativeException(wolfcrypt_rc, "Could not generate more random bytes");
-			break;
+			llsec_throw(wolfcrypt_rc, "Could not generate more random bytes");
+			is_leaving_loop = true;
 		}
 	}
 }
@@ -138,11 +137,13 @@ void LLSEC_RANDOM_IMPL_set_seed(int32_t native_id, uint8_t *seed, int32_t size) 
 	int wolfcrypt_rc = wc_RNG_DRBG_Reseed(wolfcrypt_rng, (byte *)seed, (word32)size);
 	if (LLSEC_WOLFCRYPT_SUCCESS != wolfcrypt_rc) {
 		LLSEC_RANDOM_DEBUG_TRACE("wc_RNG_DRBG_Reseed() failed: %s\n", wc_GetErrorString(wolfcrypt_rc));
-		(void)SNI_throwNativeException(wolfcrypt_rc, "Could not re-seed random number generator");
+		llsec_throw(wolfcrypt_rc, "Could not re-seed random number generator");
 	}
 }
 
 // See the header file for the function documentation
+// cppcheck-suppress [misra-c2012-2.7] : false positive, parameters used in optional debug trace and available for other
+// implemenations.
 void LLSEC_RANDOM_IMPL_generate_seed(int32_t native_id, uint8_t *seed, int32_t size) {
 	LLSEC_RANDOM_DEBUG_TRACE("%s(id=%d, size=%d)\n", __func__, native_id, size);
 	LLSEC_RANDOM_IMPL_next_bytes(native_id, seed, size);
@@ -153,3 +154,7 @@ int32_t LLSEC_RANDOM_IMPL_get_close_id(void) {
 	LLSEC_RANDOM_DEBUG_TRACE("%s\n", __func__);
 	return (int32_t)LLSEC_RANDOM_IMPL_close;
 }
+
+// -----------------------------------------------------------------------------
+// EOF
+// -----------------------------------------------------------------------------
