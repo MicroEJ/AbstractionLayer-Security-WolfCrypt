@@ -1,23 +1,25 @@
 /*
  * Copyright 2024-2026 MicroEJ Corp. All rights reserved.
  * Use of this source code is governed by a BSD-style license that can be found with this software.
+ *
+ * Build: 7E4D1F7C
  */
 
 /**
  * @file
- * @brief LLSECURITY implementation for WolfCrypt - Digest.
+ * @brief LLCRYPTO implementation for WolfCrypt - Digest.
  * @author MicroEJ Developer Team
- * @version 1.1.0
+ * @version 2.0.0
  */
 
 // --------------------------------------------------------------------------------
 // Includes
 // --------------------------------------------------------------------------------
 
-#include <LLSEC_common.h>
-#include <LLSEC_DIGEST_impl.h>
-#include <LLSEC_ERRORS.h>
-#include <LLSEC_wolfcrypt.h>
+#include <LLCRYPTO_common.h>
+#include <LLCRYPTO_DIGEST_impl.h>
+#include <LLCRYPTO_ERRORS.h>
+#include <LLCRYPTO_wolfcrypt.h>
 
 #include <sni.h>
 #include <stdint.h>
@@ -44,53 +46,53 @@
 // Types
 // -----------------------------------------------------------------------------
 
-typedef int (*LLSEC_DIGEST_init)(void **native_id);
-typedef int (*LLSEC_DIGEST_update)(void *native_id, uint8_t *buffer, int32_t buffer_length);
-typedef int (*LLSEC_DIGEST_digest)(void *native_id, uint8_t *out, int32_t *out_length);
-typedef void (*LLSEC_DIGEST_close)(void *native_id);
+typedef int (*LLCRYPTO_DIGEST_init)(void **native_id);
+typedef int (*LLCRYPTO_DIGEST_update)(void *native_id, uint8_t *buffer, int32_t buffer_length);
+typedef int (*LLCRYPTO_DIGEST_digest)(void *native_id, uint8_t *out, int32_t *out_length);
+typedef void (*LLCRYPTO_DIGEST_close)(void *native_id);
 
 /*
  * LL-API related functions & struct
  */
 typedef struct {
 	char *name;
-	LLSEC_DIGEST_init init;
-	LLSEC_DIGEST_update update;
-	LLSEC_DIGEST_digest digest;
-	LLSEC_DIGEST_close close;
-	LLSEC_DIGEST_algorithm_desc description;
-} LLSEC_DIGEST_algorithm;
+	LLCRYPTO_DIGEST_init init;
+	LLCRYPTO_DIGEST_update update;
+	LLCRYPTO_DIGEST_digest digest;
+	LLCRYPTO_DIGEST_close close;
+	LLCRYPTO_DIGEST_algorithm_desc description;
+} LLCRYPTO_DIGEST_algorithm;
 
 // --------------------------------------------------------------------------------
 // Private functions
 // --------------------------------------------------------------------------------
 
-static int LLSEC_DIGEST_MD5_init(void **native_id);
-static int LLSEC_DIGEST_SHA1_init(void **native_id);
-static int LLSEC_DIGEST_SHA256_init(void **native_id);
-static int LLSEC_DIGEST_SHA512_init(void **native_id);
-static int LLSEC_DIGEST_MD5_update(void *native_id, uint8_t *buffer, int32_t buffer_length);
-static int LLSEC_DIGEST_SHA1_update(void *native_id, uint8_t *buffer, int32_t buffer_length);
-static int LLSEC_DIGEST_SHA256_update(void *native_id, uint8_t *buffer, int32_t buffer_length);
-static int LLSEC_DIGEST_SHA512_update(void *native_id, uint8_t *buffer, int32_t buffer_length);
-static int LLSEC_DIGEST_MD5_digest(void *native_id, uint8_t *out, int32_t *out_length);
-static int LLSEC_DIGEST_SHA1_digest(void *native_id, uint8_t *out, int32_t *out_length);
-static int LLSEC_DIGEST_SHA256_digest(void *native_id, uint8_t *out, int32_t *out_length);
-static int LLSEC_DIGEST_SHA512_digest(void *native_id, uint8_t *out, int32_t *out_length);
-static void LLSEC_DIGEST_MD5_close(void *native_id);
-static void LLSEC_DIGEST_SHA1_close(void *native_id);
-static void LLSEC_DIGEST_SHA256_close(void *native_id);
-static void LLSEC_DIGEST_SHA512_close(void *native_id);
+static int LLCRYPTO_DIGEST_MD5_init(void **native_id);
+static int LLCRYPTO_DIGEST_SHA1_init(void **native_id);
+static int LLCRYPTO_DIGEST_SHA256_init(void **native_id);
+static int LLCRYPTO_DIGEST_SHA512_init(void **native_id);
+static int LLCRYPTO_DIGEST_MD5_update(void *native_id, uint8_t *buffer, int32_t buffer_length);
+static int LLCRYPTO_DIGEST_SHA1_update(void *native_id, uint8_t *buffer, int32_t buffer_length);
+static int LLCRYPTO_DIGEST_SHA256_update(void *native_id, uint8_t *buffer, int32_t buffer_length);
+static int LLCRYPTO_DIGEST_SHA512_update(void *native_id, uint8_t *buffer, int32_t buffer_length);
+static int LLCRYPTO_DIGEST_MD5_digest(void *native_id, uint8_t *out, int32_t *out_length);
+static int LLCRYPTO_DIGEST_SHA1_digest(void *native_id, uint8_t *out, int32_t *out_length);
+static int LLCRYPTO_DIGEST_SHA256_digest(void *native_id, uint8_t *out, int32_t *out_length);
+static int LLCRYPTO_DIGEST_SHA512_digest(void *native_id, uint8_t *out, int32_t *out_length);
+static void LLCRYPTO_DIGEST_MD5_close(void *native_id);
+static void LLCRYPTO_DIGEST_SHA1_close(void *native_id);
+static void LLCRYPTO_DIGEST_SHA256_close(void *native_id);
+static void LLCRYPTO_DIGEST_SHA512_close(void *native_id);
 
 // cppcheck-suppress [misra-c2012-8.9] : Define here for code readability even if it called once in this file.
-static LLSEC_DIGEST_algorithm available_digest_algorithms[] = {
+static LLCRYPTO_DIGEST_algorithm available_digest_algorithms[] = {
 #ifndef NO_MD5
 	{
 		.name = "MD5",
-		.init = LLSEC_DIGEST_MD5_init,
-		.update = LLSEC_DIGEST_MD5_update,
-		.digest = LLSEC_DIGEST_MD5_digest,
-		.close = LLSEC_DIGEST_MD5_close,
+		.init = LLCRYPTO_DIGEST_MD5_init,
+		.update = LLCRYPTO_DIGEST_MD5_update,
+		.digest = LLCRYPTO_DIGEST_MD5_digest,
+		.close = LLCRYPTO_DIGEST_MD5_close,
 		{
 			.digest_length = MD5_DIGEST_LENGTH
 		}
@@ -99,10 +101,10 @@ static LLSEC_DIGEST_algorithm available_digest_algorithms[] = {
 #ifndef NO_SHA
 	{
 		.name = "SHA-1",
-		.init = LLSEC_DIGEST_SHA1_init,
-		.update = LLSEC_DIGEST_SHA1_update,
-		.digest = LLSEC_DIGEST_SHA1_digest,
-		.close = LLSEC_DIGEST_SHA1_close,
+		.init = LLCRYPTO_DIGEST_SHA1_init,
+		.update = LLCRYPTO_DIGEST_SHA1_update,
+		.digest = LLCRYPTO_DIGEST_SHA1_digest,
+		.close = LLCRYPTO_DIGEST_SHA1_close,
 		{
 			.digest_length = SHA1_DIGEST_LENGTH
 		}
@@ -111,10 +113,10 @@ static LLSEC_DIGEST_algorithm available_digest_algorithms[] = {
 #ifndef NO_SHA256
 	{
 		.name = "SHA-256",
-		.init = LLSEC_DIGEST_SHA256_init,
-		.update = LLSEC_DIGEST_SHA256_update,
-		.digest = LLSEC_DIGEST_SHA256_digest,
-		.close = LLSEC_DIGEST_SHA256_close,
+		.init = LLCRYPTO_DIGEST_SHA256_init,
+		.update = LLCRYPTO_DIGEST_SHA256_update,
+		.digest = LLCRYPTO_DIGEST_SHA256_digest,
+		.close = LLCRYPTO_DIGEST_SHA256_close,
 		{
 			.digest_length = SHA256_DIGEST_LENGTH
 		}
@@ -123,10 +125,10 @@ static LLSEC_DIGEST_algorithm available_digest_algorithms[] = {
 #ifdef WOLFSSL_SHA512
 	{
 		.name = "SHA-512",
-		.init = LLSEC_DIGEST_SHA512_init,
-		.update = LLSEC_DIGEST_SHA512_update,
-		.digest = LLSEC_DIGEST_SHA512_digest,
-		.close = LLSEC_DIGEST_SHA512_close,
+		.init = LLCRYPTO_DIGEST_SHA512_init,
+		.update = LLCRYPTO_DIGEST_SHA512_update,
+		.digest = LLCRYPTO_DIGEST_SHA512_digest,
+		.close = LLCRYPTO_DIGEST_SHA512_close,
 		{
 			.digest_length = SHA512_DIGEST_LENGTH
 		}
@@ -160,30 +162,32 @@ typedef union {
  *
  * @param[out] native_id        The pointer pointer to the native structure storing the MD5 context.
  *
- * @return LLSEC_SUCCESS if the initialization is successful, LLSEC_ERROR otherwise.
+ * @return LLCRYPTO_SUCCESS if the initialization is successful, LLCRYPTO_ERROR otherwise.
  *
  */
-static int LLSEC_DIGEST_MD5_init(void **native_id) {
-	int return_code = LLSEC_SUCCESS;
-	LLSEC_DIGEST_DEBUG_TRACE("%s \n", __func__);
-	WOLFSSL_HEAP_HINT *pHint = llsec_wolfssl_get_heap();
+static int LLCRYPTO_DIGEST_MD5_init(void **native_id) {
+	int return_code = LLCRYPTO_SUCCESS;
+	LLCRYPTO_DIGEST_DEBUG_TRACE("%s \n", __func__);
+	WOLFSSL_HEAP_HINT *pHint = llcrypto_wolfssl_get_heap();
 
 	// cppcheck-suppress [misra-c2012-19.2] : Abstract data type for SNI usage
-	wolfcrypt_digest_context_t *md_ctx = llsec_calloc(1, sizeof(wc_Md5));
+	wolfcrypt_digest_context_t *md_ctx = llcrypto_calloc(1, sizeof(wc_Md5));
 	if (NULL == md_ctx) {
-		return_code = LLSEC_ERROR;
+		return_code = LLCRYPTO_ERROR_OOM;
 	}
 
-	if (LLSEC_SUCCESS == return_code) {
+	if (LLCRYPTO_SUCCESS == return_code) {
 		int wolfcrypt_rc = wc_InitMd5_ex(&md_ctx->md5_ctx, pHint, INVALID_DEVID);
-		if (LLSEC_WOLFCRYPT_SUCCESS != wolfcrypt_rc) {
-			return_code = LLSEC_ERROR;
+		if (LLCRYPTO_WOLFCRYPT_SUCCESS != wolfcrypt_rc) {
+			return_code = LLCRYPTO_ERROR;
 		}
 	}
 
-	if (LLSEC_SUCCESS != return_code) {
-		wc_Md5Free(&md_ctx->md5_ctx);
-		llsec_free(md_ctx);
+	if (LLCRYPTO_SUCCESS != return_code) {
+		if (NULL != md_ctx) {
+			wc_Md5Free(&md_ctx->md5_ctx);
+			llcrypto_free(md_ctx);
+		}
 	} else {
 		*native_id = md_ctx;
 	}
@@ -198,18 +202,18 @@ static int LLSEC_DIGEST_MD5_init(void **native_id) {
  * @param[in] out       A pointer to the destination buffer.
  * @param[out] out_length  A pointer to a variable to store the number of bytes putted to the buffer.
  *
- * @return LLSEC_WOLFCRYPT_SUCCESS if recovery is successful, Wolfcrypt error code otherwise.
+ * @return LLCRYPTO_WOLFCRYPT_SUCCESS if recovery is successful, Wolfcrypt error code otherwise.
  *
  */
-static int LLSEC_DIGEST_MD5_digest(void *native_id, uint8_t *out, int32_t *out_length) {
-	LLSEC_DIGEST_DEBUG_TRACE("%s \n", __func__);
+static int LLCRYPTO_DIGEST_MD5_digest(void *native_id, uint8_t *out, int32_t *out_length) {
+	LLCRYPTO_DIGEST_DEBUG_TRACE("%s \n", __func__);
 
 	// cppcheck-suppress [misra-c2012-11.5] : Abstract data type for SNI usage
 	// cppcheck-suppress [misra-c2012-19.2] : Abstract data type for SNI usage
 	wolfcrypt_digest_context_t *md_ctx = (wolfcrypt_digest_context_t *)native_id;
 	int wolfcrypt_rc = wc_Md5Final(&md_ctx->md5_ctx, out);
 
-	if (LLSEC_WOLFCRYPT_SUCCESS == wolfcrypt_rc) {
+	if (LLCRYPTO_WOLFCRYPT_SUCCESS == wolfcrypt_rc) {
 		*out_length = MD5_DIGEST_LENGTH;
 	}
 
@@ -223,11 +227,11 @@ static int LLSEC_DIGEST_MD5_digest(void *native_id, uint8_t *out, int32_t *out_l
  * @param[in] buffer    A pointer to the buffer containing the data set.
  * @param[in] buffer_length The size of the data set buffer.
  *
- * @return  LLSEC_WOLFCRYPT_SUCCESS if update is successful, Wolfcrypt error code otherwise.
+ * @return  LLCRYPTO_WOLFCRYPT_SUCCESS if update is successful, Wolfcrypt error code otherwise.
  *
  */
-static int LLSEC_DIGEST_MD5_update(void *native_id, uint8_t *buffer, int32_t buffer_length) {
-	LLSEC_DIGEST_DEBUG_TRACE("%s \n", __func__);
+static int LLCRYPTO_DIGEST_MD5_update(void *native_id, uint8_t *buffer, int32_t buffer_length) {
+	LLCRYPTO_DIGEST_DEBUG_TRACE("%s \n", __func__);
 
 	// cppcheck-suppress [misra-c2012-11.5] : Abstract data type for SNI usage
 	// cppcheck-suppress [misra-c2012-19.2] : Abstract data type for SNI usage
@@ -243,8 +247,8 @@ static int LLSEC_DIGEST_MD5_update(void *native_id, uint8_t *buffer, int32_t buf
  *
  *
  */
-static void  LLSEC_DIGEST_MD5_close(void *native_id) {
-	LLSEC_DIGEST_DEBUG_TRACE("%s \n", __func__);
+static void  LLCRYPTO_DIGEST_MD5_close(void *native_id) {
+	LLCRYPTO_DIGEST_DEBUG_TRACE("%s \n", __func__);
 
 	// cppcheck-suppress [misra-c2012-11.5] : Abstract data type for SNI usage
 	// cppcheck-suppress [misra-c2012-19.2] : Abstract data type for SNI usage
@@ -252,7 +256,7 @@ static void  LLSEC_DIGEST_MD5_close(void *native_id) {
 
 	/* Memory deallocation */
 	wc_Md5Free(&md_ctx->md5_ctx);
-	llsec_free(md_ctx);
+	llcrypto_free(md_ctx);
 }
 
 #endif // NO_MD5
@@ -267,30 +271,32 @@ static void  LLSEC_DIGEST_MD5_close(void *native_id) {
  *
  * @param[out] native_id        The pointer pointer to the native structure storing the SHA1 context.
  *
- * @return LLSEC_SUCCESS if the initialization is successful, LLSEC_ERROR otherwise.
+ * @return LLCRYPTO_SUCCESS if the initialization is successful, LLCRYPTO_ERROR otherwise.
  *
  */
-static int LLSEC_DIGEST_SHA1_init(void **native_id) {
-	int return_code = LLSEC_SUCCESS;
-	LLSEC_DIGEST_DEBUG_TRACE("%s \n", __func__);
-	WOLFSSL_HEAP_HINT *pHint = llsec_wolfssl_get_heap();
+static int LLCRYPTO_DIGEST_SHA1_init(void **native_id) {
+	int return_code = LLCRYPTO_SUCCESS;
+	LLCRYPTO_DIGEST_DEBUG_TRACE("%s \n", __func__);
+	WOLFSSL_HEAP_HINT *pHint = llcrypto_wolfssl_get_heap();
 
 	// cppcheck-suppress [misra-c2012-19.2] : Abstract data type for SNI usage
-	wolfcrypt_digest_context_t *md_ctx = (wolfcrypt_digest_context_t *)llsec_calloc(1, sizeof(wc_Sha));
+	wolfcrypt_digest_context_t *md_ctx = (wolfcrypt_digest_context_t *)llcrypto_calloc(1, sizeof(wc_Sha));
 	if (NULL == md_ctx) {
-		return_code = LLSEC_ERROR;
+		return_code = LLCRYPTO_ERROR_OOM;
 	}
 
-	if (LLSEC_SUCCESS == return_code) {
+	if (LLCRYPTO_SUCCESS == return_code) {
 		int wolfcrypt_rc = wc_InitSha_ex(&md_ctx->sha1_ctx, pHint, INVALID_DEVID);
-		if (LLSEC_WOLFCRYPT_SUCCESS != wolfcrypt_rc) {
-			return_code = LLSEC_ERROR;
+		if (LLCRYPTO_WOLFCRYPT_SUCCESS != wolfcrypt_rc) {
+			return_code = LLCRYPTO_ERROR;
 		}
 	}
 
-	if (LLSEC_SUCCESS != return_code) {
-		wc_ShaFree(&md_ctx->sha1_ctx);
-		llsec_free(md_ctx);
+	if (LLCRYPTO_SUCCESS != return_code) {
+		if (NULL != md_ctx) {
+			wc_ShaFree(&md_ctx->sha1_ctx);
+			llcrypto_free(md_ctx);
+		}
 	} else {
 		*native_id = md_ctx;
 	}
@@ -305,18 +311,18 @@ static int LLSEC_DIGEST_SHA1_init(void **native_id) {
  * @param[in] out       A pointer to the destination buffer.
  * @param[out] out_length  A pointer to a variable to store the number of bytes putted to the buffer.
  *
- * @return LLSEC_WOLFCRYPT_SUCCESS if recovery is successful, Wolfcrypt error code otherwise.
+ * @return LLCRYPTO_WOLFCRYPT_SUCCESS if recovery is successful, Wolfcrypt error code otherwise.
  *
  */
-static int LLSEC_DIGEST_SHA1_digest(void *native_id, uint8_t *out, int32_t *out_length) {
-	LLSEC_DIGEST_DEBUG_TRACE("%s \n", __func__);
+static int LLCRYPTO_DIGEST_SHA1_digest(void *native_id, uint8_t *out, int32_t *out_length) {
+	LLCRYPTO_DIGEST_DEBUG_TRACE("%s \n", __func__);
 
 	// cppcheck-suppress [misra-c2012-11.5] : Abstract data type for SNI usage
 	// cppcheck-suppress [misra-c2012-19.2] : Abstract data type for SNI usage
 	wolfcrypt_digest_context_t *md_ctx = (wolfcrypt_digest_context_t *)native_id;
 	int wolfcrypt_rc = wc_ShaFinal(&md_ctx->sha1_ctx, out);
 
-	if (LLSEC_WOLFCRYPT_SUCCESS == wolfcrypt_rc) {
+	if (LLCRYPTO_WOLFCRYPT_SUCCESS == wolfcrypt_rc) {
 		*out_length = SHA1_DIGEST_LENGTH;
 	}
 
@@ -330,11 +336,11 @@ static int LLSEC_DIGEST_SHA1_digest(void *native_id, uint8_t *out, int32_t *out_
  * @param[in] buffer    A pointer to the buffer containing the data set.
  * @param[in] buffer_length The size of the data set buffer.
  *
- * @return  LLSEC_WOLFCRYPT_SUCCESS if update is successful, Wolfcrypt error code otherwise.
+ * @return  LLCRYPTO_WOLFCRYPT_SUCCESS if update is successful, Wolfcrypt error code otherwise.
  *
  */
-static int LLSEC_DIGEST_SHA1_update(void *native_id, uint8_t *buffer, int32_t buffer_length) {
-	LLSEC_DIGEST_DEBUG_TRACE("%s \n", __func__);
+static int LLCRYPTO_DIGEST_SHA1_update(void *native_id, uint8_t *buffer, int32_t buffer_length) {
+	LLCRYPTO_DIGEST_DEBUG_TRACE("%s \n", __func__);
 
 	// cppcheck-suppress [misra-c2012-11.5] : Abstract data type for SNI usage
 	// cppcheck-suppress [misra-c2012-19.2] : Abstract data type for SNI usage
@@ -349,8 +355,8 @@ static int LLSEC_DIGEST_SHA1_update(void *native_id, uint8_t *buffer, int32_t bu
  * @param[in] native_id        The pointer to the native structure storing the SHA1 context.
  *
  */
-static void  LLSEC_DIGEST_SHA1_close(void *native_id) {
-	LLSEC_DIGEST_DEBUG_TRACE("%s \n", __func__);
+static void  LLCRYPTO_DIGEST_SHA1_close(void *native_id) {
+	LLCRYPTO_DIGEST_DEBUG_TRACE("%s \n", __func__);
 
 	// cppcheck-suppress [misra-c2012-11.5] : Abstract data type for SNI usage
 	// cppcheck-suppress [misra-c2012-19.2] : Abstract data type for SNI usage
@@ -358,7 +364,7 @@ static void  LLSEC_DIGEST_SHA1_close(void *native_id) {
 
 	/* Memory deallocation */
 	wc_ShaFree(&md_ctx->sha1_ctx);
-	llsec_free(md_ctx);
+	llcrypto_free(md_ctx);
 }
 
 #endif // NO_SHA
@@ -373,31 +379,33 @@ static void  LLSEC_DIGEST_SHA1_close(void *native_id) {
  *
  * @param[out] native_id        The pointer of pointer to the native structure storing the SHA256 context.
  *
- * @return LLSEC_SUCCESS if the initialization is successful, LLSEC_ERROR otherwise.
+ * @return LLCRYPTO_SUCCESS if the initialization is successful, LLCRYPTO_ERROR otherwise.
  *
  */
-static int LLSEC_DIGEST_SHA256_init(void **native_id) {
-	int return_code = LLSEC_SUCCESS;
-	LLSEC_DIGEST_DEBUG_TRACE("%s \n", __func__);
-	WOLFSSL_HEAP_HINT *pHint = llsec_wolfssl_get_heap();
+static int LLCRYPTO_DIGEST_SHA256_init(void **native_id) {
+	int return_code = LLCRYPTO_SUCCESS;
+	LLCRYPTO_DIGEST_DEBUG_TRACE("%s \n", __func__);
+	WOLFSSL_HEAP_HINT *pHint = llcrypto_wolfssl_get_heap();
 
 	// cppcheck-suppress [misra-c2012-19.2] : Abstract data type for SNI usage
-	wolfcrypt_digest_context_t *md_ctx = (wolfcrypt_digest_context_t *)llsec_calloc(1,
-	                                                                                sizeof(wolfcrypt_digest_context_t));
+	wolfcrypt_digest_context_t *md_ctx = (wolfcrypt_digest_context_t *)llcrypto_calloc(1,
+	                                                                                   sizeof(wolfcrypt_digest_context_t));
 	if (NULL == md_ctx) {
-		return_code = LLSEC_ERROR;
+		return_code = LLCRYPTO_ERROR_OOM;
 	}
 
-	if (LLSEC_SUCCESS == return_code) {
+	if (LLCRYPTO_SUCCESS == return_code) {
 		int wolfcrypt_rc = wc_InitSha256_ex(&md_ctx->sha256_ctx, pHint, INVALID_DEVID);
-		if (LLSEC_WOLFCRYPT_SUCCESS != wolfcrypt_rc) {
-			return_code = LLSEC_ERROR;
+		if (LLCRYPTO_WOLFCRYPT_SUCCESS != wolfcrypt_rc) {
+			return_code = LLCRYPTO_ERROR;
 		}
 	}
 
-	if (LLSEC_SUCCESS != return_code) {
-		wc_Sha256Free(&md_ctx->sha256_ctx);
-		llsec_free(md_ctx);
+	if (LLCRYPTO_SUCCESS != return_code) {
+		if (NULL != md_ctx) {
+			wc_Sha256Free(&md_ctx->sha256_ctx);
+			llcrypto_free(md_ctx);
+		}
 	} else {
 		*native_id = md_ctx;
 	}
@@ -412,18 +420,18 @@ static int LLSEC_DIGEST_SHA256_init(void **native_id) {
  * @param[in] out       A pointer to the destination buffer.
  * @param[out] out_length  A pointer to a variable to store the number of bytes putted to the buffer.
  *
- * @return LLSEC_WOLFCRYPT_SUCCESS if recovery is successful, Wolfcrypt error code otherwise.
+ * @return LLCRYPTO_WOLFCRYPT_SUCCESS if recovery is successful, Wolfcrypt error code otherwise.
  *
  */
-static int LLSEC_DIGEST_SHA256_digest(void *native_id, uint8_t *out, int32_t *out_length) {
-	LLSEC_DIGEST_DEBUG_TRACE("%s \n", __func__);
+static int LLCRYPTO_DIGEST_SHA256_digest(void *native_id, uint8_t *out, int32_t *out_length) {
+	LLCRYPTO_DIGEST_DEBUG_TRACE("%s \n", __func__);
 
 	// cppcheck-suppress [misra-c2012-11.5] : Abstract data type for SNI usage
 	// cppcheck-suppress [misra-c2012-19.2] : Abstract data type for SNI usage
 	wolfcrypt_digest_context_t *md_ctx = (wolfcrypt_digest_context_t *)native_id;
 	int wolfcrypt_rc = wc_Sha256Final(&md_ctx->sha256_ctx, out);
 
-	if (LLSEC_WOLFCRYPT_SUCCESS == wolfcrypt_rc) {
+	if (LLCRYPTO_WOLFCRYPT_SUCCESS == wolfcrypt_rc) {
 		*out_length = SHA256_DIGEST_LENGTH;
 	}
 
@@ -440,8 +448,8 @@ static int LLSEC_DIGEST_SHA256_digest(void *native_id, uint8_t *out, int32_t *ou
  * @return The nativeId of the newly initialized resource.
  *
  */
-static int LLSEC_DIGEST_SHA256_update(void *native_id, uint8_t *buffer, int32_t buffer_length) {
-	LLSEC_DIGEST_DEBUG_TRACE("%s \n", __func__);
+static int LLCRYPTO_DIGEST_SHA256_update(void *native_id, uint8_t *buffer, int32_t buffer_length) {
+	LLCRYPTO_DIGEST_DEBUG_TRACE("%s \n", __func__);
 
 	// cppcheck-suppress [misra-c2012-11.5] : Abstract data type for SNI usage
 	// cppcheck-suppress [misra-c2012-19.2] : Abstract data type for SNI usage
@@ -456,8 +464,8 @@ static int LLSEC_DIGEST_SHA256_update(void *native_id, uint8_t *buffer, int32_t 
  * @param[in] native_id        The pointer to the native structure storing the SHA256 context.
  *
  */
-static void  LLSEC_DIGEST_SHA256_close(void *native_id) {
-	LLSEC_DIGEST_DEBUG_TRACE("%s \n", __func__);
+static void  LLCRYPTO_DIGEST_SHA256_close(void *native_id) {
+	LLCRYPTO_DIGEST_DEBUG_TRACE("%s \n", __func__);
 
 	// cppcheck-suppress [misra-c2012-11.5] : Abstract data type for SNI usage
 	// cppcheck-suppress [misra-c2012-19.2] : Abstract data type for SNI usage
@@ -465,7 +473,7 @@ static void  LLSEC_DIGEST_SHA256_close(void *native_id) {
 
 	/* Memory deallocation */
 	wc_Sha256Free(&md_ctx->sha256_ctx);
-	llsec_free(md_ctx);
+	llcrypto_free(md_ctx);
 }
 
 #endif // NO_SHA256
@@ -479,30 +487,32 @@ static void  LLSEC_DIGEST_SHA256_close(void *native_id) {
  *
  * @param[out] native_id        The pointer of pointer to the native structure storing the SHA512 context.
  *
- * @return LLSEC_SUCCESS if the initialization is successful, LLSEC_ERROR otherwise.
+ * @return LLCRYPTO_SUCCESS if the initialization is successful, LLCRYPTO_ERROR otherwise.
  *
  */
-static int LLSEC_DIGEST_SHA512_init(void **native_id) {
-	int return_code = LLSEC_SUCCESS;
-	LLSEC_DIGEST_DEBUG_TRACE("%s \n", __func__);
-	WOLFSSL_HEAP_HINT *pHint = llsec_wolfssl_get_heap();
+static int LLCRYPTO_DIGEST_SHA512_init(void **native_id) {
+	int return_code = LLCRYPTO_SUCCESS;
+	LLCRYPTO_DIGEST_DEBUG_TRACE("%s \n", __func__);
+	WOLFSSL_HEAP_HINT *pHint = llcrypto_wolfssl_get_heap();
 
 	// cppcheck-suppress [misra-c2012-19.2] : Abstract data type for SNI usage
-	wolfcrypt_digest_context_t *md_ctx = llsec_calloc(1, sizeof(wc_Sha512));
+	wolfcrypt_digest_context_t *md_ctx = llcrypto_calloc(1, sizeof(wc_Sha512));
 	if (NULL == md_ctx) {
-		return_code = LLSEC_ERROR;
+		return_code = LLCRYPTO_ERROR_OOM;
 	}
 
-	if (LLSEC_SUCCESS == return_code) {
+	if (LLCRYPTO_SUCCESS == return_code) {
 		int wolfcrypt_rc = wc_InitSha512_ex(&md_ctx->sha512_ctx, pHint, INVALID_DEVID);
-		if (LLSEC_WOLFCRYPT_SUCCESS != wolfcrypt_rc) {
-			return_code = LLSEC_ERROR;
+		if (LLCRYPTO_WOLFCRYPT_SUCCESS != wolfcrypt_rc) {
+			return_code = LLCRYPTO_ERROR;
 		}
 	}
 
-	if (LLSEC_SUCCESS != return_code) {
-		wc_Sha512Free(&md_ctx->sha512_ctx);
-		llsec_free(md_ctx);
+	if (LLCRYPTO_SUCCESS != return_code) {
+		if (NULL != md_ctx) {
+			wc_Sha512Free(&md_ctx->sha512_ctx);
+			llcrypto_free(md_ctx);
+		}
 	} else {
 		*native_id = md_ctx;
 	}
@@ -517,18 +527,18 @@ static int LLSEC_DIGEST_SHA512_init(void **native_id) {
  * @param[in] out       A pointer to the destination buffer.
  * @param[out] out_length  A pointer to a variable to store the number of bytes putted to the buffer.
  *
- * @return LLSEC_WOLFCRYPT_SUCCESS if recovery is successful, Wolfcrypt error code otherwise.
+ * @return LLCRYPTO_WOLFCRYPT_SUCCESS if recovery is successful, Wolfcrypt error code otherwise.
  *
  */
-static int LLSEC_DIGEST_SHA512_digest(void *native_id, uint8_t *out, int32_t *out_length) {
-	LLSEC_DIGEST_DEBUG_TRACE("%s \n", __func__);
+static int LLCRYPTO_DIGEST_SHA512_digest(void *native_id, uint8_t *out, int32_t *out_length) {
+	LLCRYPTO_DIGEST_DEBUG_TRACE("%s \n", __func__);
 
 	// cppcheck-suppress [misra-c2012-11.5] : Abstract data type for SNI usage
 	// cppcheck-suppress [misra-c2012-19.2] : Abstract data type for SNI usage
 	wolfcrypt_digest_context_t *md_ctx = (wolfcrypt_digest_context_t *)native_id;
 	int wolfcrypt_rc = wc_Sha512Final(&md_ctx->sha512_ctx, out);
 
-	if (LLSEC_WOLFCRYPT_SUCCESS == wolfcrypt_rc) {
+	if (LLCRYPTO_WOLFCRYPT_SUCCESS == wolfcrypt_rc) {
 		*out_length = SHA512_DIGEST_LENGTH;
 	}
 
@@ -542,11 +552,11 @@ static int LLSEC_DIGEST_SHA512_digest(void *native_id, uint8_t *out, int32_t *ou
  * @param[in] buffer    A pointer to the buffer containing the data set.
  * @param[in] buffer_length The size of the data set buffer.
  *
- * @return  LLSEC_WOLFCRYPT_SUCCESS if update is successful, Wolfcrypt error code otherwise.
+ * @return  LLCRYPTO_WOLFCRYPT_SUCCESS if update is successful, Wolfcrypt error code otherwise.
  *
  */
-static int LLSEC_DIGEST_SHA512_update(void *native_id, uint8_t *buffer, int32_t buffer_length) {
-	LLSEC_DIGEST_DEBUG_TRACE("%s \n", __func__);
+static int LLCRYPTO_DIGEST_SHA512_update(void *native_id, uint8_t *buffer, int32_t buffer_length) {
+	LLCRYPTO_DIGEST_DEBUG_TRACE("%s \n", __func__);
 
 	// cppcheck-suppress [misra-c2012-11.5] : Abstract data type for SNI usage
 	// cppcheck-suppress [misra-c2012-19.2] : Abstract data type for SNI usage
@@ -561,8 +571,8 @@ static int LLSEC_DIGEST_SHA512_update(void *native_id, uint8_t *buffer, int32_t 
  * @param[in] native_id        The pointer to the native structure storing the SHA512 context.
  *
  */
-static void  LLSEC_DIGEST_SHA512_close(void *native_id) {
-	LLSEC_DIGEST_DEBUG_TRACE("%s \n", __func__);
+static void  LLCRYPTO_DIGEST_SHA512_close(void *native_id) {
+	LLCRYPTO_DIGEST_DEBUG_TRACE("%s \n", __func__);
 
 	// cppcheck-suppress [misra-c2012-11.5] : Abstract data type for SNI usage
 	// cppcheck-suppress [misra-c2012-19.2] : Abstract data type for SNI usage
@@ -570,26 +580,26 @@ static void  LLSEC_DIGEST_SHA512_close(void *native_id) {
 
 	/* Memory deallocation */
 	wc_Sha512Free(&md_ctx->sha512_ctx);
-	llsec_free(md_ctx);
+	llcrypto_free(md_ctx);
 }
 
 #endif // WOLFSSL_SHA512
 
 // --------------------------------------------------------------------------------
-// LLSEC_DIGEST_impl.h functions
+// LLCRYPTO_DIGEST_impl.h functions
 // --------------------------------------------------------------------------------
 
 // See the header file for the function documentation
-int32_t LLSEC_DIGEST_IMPL_get_algorithm_description(uint8_t *algorithm_name,
-                                                    LLSEC_DIGEST_algorithm_desc *algorithm_desc) {
-	int32_t return_code = LLSEC_ERROR;
-	LLSEC_DIGEST_DEBUG_TRACE("%s \n", __func__);
-	int32_t nb_algorithms = sizeof(available_digest_algorithms) / sizeof(LLSEC_DIGEST_algorithm);
-	LLSEC_DIGEST_algorithm *algorithm = &available_digest_algorithms[0];
+int32_t LLCRYPTO_DIGEST_IMPL_get_algorithm_description(uint8_t *algorithm_name,
+                                                       LLCRYPTO_DIGEST_algorithm_desc *algorithm_desc) {
+	int32_t return_code = LLCRYPTO_ERROR;
+	LLCRYPTO_DIGEST_DEBUG_TRACE("%s \n", __func__);
+	int32_t nb_algorithms = sizeof(available_digest_algorithms) / sizeof(LLCRYPTO_DIGEST_algorithm);
+	LLCRYPTO_DIGEST_algorithm *algorithm = &available_digest_algorithms[0];
 
 	while (--nb_algorithms >= 0) {
 		if (0 == strcmp((char *)algorithm_name, (algorithm->name))) {
-			llsec_memcpy(algorithm_desc, &(algorithm->description), sizeof(LLSEC_DIGEST_algorithm_desc));
+			llcrypto_memcpy(algorithm_desc, &(algorithm->description), sizeof(LLCRYPTO_DIGEST_algorithm_desc));
 			break;
 		}
 		algorithm++;
@@ -603,23 +613,23 @@ int32_t LLSEC_DIGEST_IMPL_get_algorithm_description(uint8_t *algorithm_name,
 }
 
 // See the header file for the function documentation
-int32_t LLSEC_DIGEST_IMPL_init(int32_t algorithm_id) {
-	int32_t return_code = LLSEC_SUCCESS;
-	LLSEC_DIGEST_DEBUG_TRACE("%s \n", __func__);
+int32_t LLCRYPTO_DIGEST_IMPL_init(int32_t algorithm_id) {
+	int32_t return_code = LLCRYPTO_SUCCESS;
+	LLCRYPTO_DIGEST_DEBUG_TRACE("%s \n", __func__);
 	void *native_id = NULL;
 	// cppcheck-suppress [misra-c2012-11.4] : Abstract data type for SNI usage
-	LLSEC_DIGEST_algorithm *algorithm = (LLSEC_DIGEST_algorithm *)algorithm_id;
+	LLCRYPTO_DIGEST_algorithm *algorithm = (LLCRYPTO_DIGEST_algorithm *)algorithm_id;
 
 	return_code = algorithm->init((void **)&native_id);
 
-	if (LLSEC_SUCCESS != return_code) {
-		llsec_throw(return_code, "LLSEC_DIGEST_IMPL_init failed");
+	if (LLCRYPTO_SUCCESS != return_code) {
+		llcrypto_throw(return_code, "LLCRYPTO_DIGEST_IMPL_init failed");
 	} else {
 		/* register SNI native resource */
 		if (SNI_OK != SNI_registerResource(native_id, algorithm->close, NULL)) {
-			llsec_throw(LLSEC_ERROR, "Can't register SNI native resource");
+			llcrypto_throw(LLCRYPTO_ERROR, "Can't register SNI native resource");
 			algorithm->close((void *)native_id);
-			return_code = LLSEC_ERROR;
+			return_code = LLCRYPTO_ERROR;
 		} else {
 			// cppcheck-suppress [misra-c2012-11.6] : Abstract data type for SNI usage
 			return_code = (int32_t)native_id;
@@ -629,10 +639,10 @@ int32_t LLSEC_DIGEST_IMPL_init(int32_t algorithm_id) {
 }
 
 // See the header file for the function documentation
-void LLSEC_DIGEST_IMPL_close(int32_t algorithm_id, int32_t native_id) {
-	LLSEC_DIGEST_DEBUG_TRACE("%s \n", __func__);
+void LLCRYPTO_DIGEST_IMPL_close(int32_t algorithm_id, int32_t native_id) {
+	LLCRYPTO_DIGEST_DEBUG_TRACE("%s \n", __func__);
 	// cppcheck-suppress [misra-c2012-11.4] : Abstract data type for SNI usage
-	LLSEC_DIGEST_algorithm *algorithm = (LLSEC_DIGEST_algorithm *)algorithm_id;
+	LLCRYPTO_DIGEST_algorithm *algorithm = (LLCRYPTO_DIGEST_algorithm *)algorithm_id;
 
 	// cppcheck-suppress [misra-c2012-11.6] : Abstract data type for SNI usage
 	algorithm->close((void *)native_id);
@@ -640,43 +650,43 @@ void LLSEC_DIGEST_IMPL_close(int32_t algorithm_id, int32_t native_id) {
 	// cppcheck-suppress [misra-c2012-11.6] : Abstract data type for SNI usage
 	// cppcheck-suppress [misra-c2012-11.1] : Abstract data type for SNI usage
 	if (SNI_OK != SNI_unregisterResource((void *)native_id, (SNI_closeFunction)algorithm->close)) {
-		llsec_throw(LLSEC_ERROR, "Can't unregister SNI native resource");
+		llcrypto_throw(LLCRYPTO_ERROR, "Can't unregister SNI native resource");
 	}
 }
 
 // See the header file for the function documentation
-void LLSEC_DIGEST_IMPL_update(int32_t algorithm_id, int32_t native_id, uint8_t *buffer, int32_t buffer_offset,
-                              int32_t buffer_length) {
-	LLSEC_DIGEST_DEBUG_TRACE("%s \n", __func__);
+void LLCRYPTO_DIGEST_IMPL_update(int32_t algorithm_id, int32_t native_id, uint8_t *buffer, int32_t buffer_offset,
+                                 int32_t buffer_length) {
+	LLCRYPTO_DIGEST_DEBUG_TRACE("%s \n", __func__);
 	// cppcheck-suppress [misra-c2012-11.4] : Abstract data type for SNI usage
-	LLSEC_DIGEST_algorithm *algorithm = (LLSEC_DIGEST_algorithm *)algorithm_id;
+	LLCRYPTO_DIGEST_algorithm *algorithm = (LLCRYPTO_DIGEST_algorithm *)algorithm_id;
 	// cppcheck-suppress [misra-c2012-11.6] : Abstract data type for SNI usage
 	int return_code = algorithm->update((void *)native_id, &buffer[buffer_offset], buffer_length);
 
-	if (LLSEC_SUCCESS != return_code) {
-		llsec_throw(return_code, "LLSEC_DIGEST_IMPL_update failed");
+	if (LLCRYPTO_SUCCESS != return_code) {
+		llcrypto_throw(return_code, "LLCRYPTO_DIGEST_IMPL_update failed");
 	}
 }
 
 // See the header file for the function documentation
-void LLSEC_DIGEST_IMPL_digest(int32_t algorithm_id, int32_t native_id, uint8_t *out, int32_t out_offset,
-                              int32_t out_length) {
-	LLSEC_DIGEST_DEBUG_TRACE("%s \n", __func__);
+void LLCRYPTO_DIGEST_IMPL_digest(int32_t algorithm_id, int32_t native_id, uint8_t *out, int32_t out_offset,
+                                 int32_t out_length) {
+	LLCRYPTO_DIGEST_DEBUG_TRACE("%s \n", __func__);
 	// cppcheck-suppress [misra-c2012-11.4] : Abstract data type for SNI usage
-	LLSEC_DIGEST_algorithm *algorithm = (LLSEC_DIGEST_algorithm *)algorithm_id;
+	LLCRYPTO_DIGEST_algorithm *algorithm = (LLCRYPTO_DIGEST_algorithm *)algorithm_id;
 	// cppcheck-suppress [misra-c2012-11.6] : Abstract data type for SNI usage
 	int return_code = algorithm->digest((void *)native_id, &out[out_offset], &out_length);
 
-	if (LLSEC_SUCCESS != return_code) {
-		llsec_throw(return_code, "LLSEC_DIGEST_IMPL_digest failed");
+	if (LLCRYPTO_SUCCESS != return_code) {
+		llcrypto_throw(return_code, "LLCRYPTO_DIGEST_IMPL_digest failed");
 	}
 }
 
 // See the header file for the function documentation
-int32_t LLSEC_DIGEST_IMPL_get_close_id(int32_t algorithm_id) {
-	LLSEC_DIGEST_DEBUG_TRACE("%s \n", __func__);
+int32_t LLCRYPTO_DIGEST_IMPL_get_close_id(int32_t algorithm_id) {
+	LLCRYPTO_DIGEST_DEBUG_TRACE("%s \n", __func__);
 	// cppcheck-suppress [misra-c2012-11.4] : Abstract data type for SNI usage
-	LLSEC_DIGEST_algorithm *algorithm = (LLSEC_DIGEST_algorithm *)algorithm_id;
+	LLCRYPTO_DIGEST_algorithm *algorithm = (LLCRYPTO_DIGEST_algorithm *)algorithm_id;
 	// cppcheck-suppress [misra-c2012-11.1] : Abstract data type for SNI usage
 	return (int32_t)algorithm->close;
 }
