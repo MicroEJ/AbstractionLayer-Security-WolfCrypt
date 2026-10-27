@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.1] - 2026-10-27
+
+### Fixed
+
+- Fix the certificate parsing and validation failing instead of retrying after a garbage collection when native memory is low.
+- Refuse a multi-part AES/CBC or AES/CTR operation on a key held in a PKCS#11 token instead of producing wrong output.
+- Refuse an AES/CBC input that is not a whole number of blocks on a key held in a PKCS#11 token instead of truncating it.
+- Report an AES/CCM cipher initialized with a key held in a PKCS#11 token as `InvalidAlgorithmParameterException` instead of a native exception at the first operation.
+- Add the thirteen external key store natives of the LLCRYPTO 2.1.0 header that the stub file lacked, so a VEE Port without a key store links with the Crypto library 2.1.0.
+
 ## [2.0.0] - 2026-09-16
 
 ### Added
@@ -61,4 +71,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 _Copyright 2025-2026 MicroEJ Corp. All rights reserved._
-_Use of this source code is governed by a BSD-style license that can be found with this software._
+_Use of this source code is governed by a BSD-style license that can be found with this software._\
+_Build: 7E4D1F7C_

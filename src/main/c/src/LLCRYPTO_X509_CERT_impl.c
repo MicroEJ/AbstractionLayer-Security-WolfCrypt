@@ -1,13 +1,15 @@
 /*
  * Copyright 2024-2026 MicroEJ Corp. All rights reserved.
  * Use of this source code is governed by a BSD-style license that can be found with this software.
+ *
+ * Build: 7E4D1F7C
  */
 
 /**
  * @file
  * @brief LLCRYPTO implementation for WolfCrypt - X509 Certificates.
  * @author MicroEJ Developer Team
- * @version 2.0.0
+ * @version 2.0.1
  */
 
 // --------------------------------------------------------------------------------
@@ -71,6 +73,10 @@ int32_t LLCRYPTO_X509_CERT_IMPL_parse(int8_t *cert, int32_t off, int32_t len) {
 	int32_t format = LLCRYPTO_X509_UNKNOWN_FORMAT;
 	int8_t *cert_data = &cert[off];
 	format = get_x509_certificate_format(cert_data, len, NULL, NULL);
+	if (format == J_MEMORY_ERROR) {
+		// Report the allocation failure as an OOM so that the Java side retries after a GC.
+		format = LLCRYPTO_ERROR_OOM;
+	}
 	if (format == CERT_PEM_FORMAT) {
 		LLCRYPTO_X509_DEBUG_TRACE("%s() => PEM\n", __func__);
 	} else if (format == CERT_DER_FORMAT) {
@@ -90,10 +96,15 @@ int32_t LLCRYPTO_X509_CERT_IMPL_get_x500_principal_data(int8_t *cert_data, int32
 	                          (int)cert_data_length, (int)principal_data_length, (int)get_issuer);
 	DecodedCert *certificate;
 
-	(void)get_x509_certificate_format(cert_data, cert_data_length, &certificate, NULL);
-	if (NULL == certificate) {
+	int32_t format = get_x509_certificate_format(cert_data, cert_data_length, &certificate, NULL);
+	if (J_MEMORY_ERROR == format) {
+		llcrypto_throw(LLCRYPTO_ERROR_OOM, "Can't allocate the decoded certificate");
+		return_code = LLCRYPTO_ERROR_OOM;
+	} else if (NULL == certificate) {
 		llcrypto_throw(LLCRYPTO_ERROR, "Bad x509 certificate");
 		return_code = LLCRYPTO_ERROR;
+	} else {
+		// certificate decoded
 	}
 
 	if (LLCRYPTO_SUCCESS == return_code) {
@@ -142,10 +153,15 @@ int32_t LLCRYPTO_X509_CERT_IMPL_get_key(int8_t *cert_data, int32_t cert_data_len
 	}
 
 	if (LLCRYPTO_SUCCESS == return_code) {
-		(void)get_x509_certificate_format(cert_data, cert_data_length, &certificate, NULL);
-		if (NULL == certificate) {
+		int32_t format = get_x509_certificate_format(cert_data, cert_data_length, &certificate, NULL);
+		if (J_MEMORY_ERROR == format) {
+			llcrypto_throw(LLCRYPTO_ERROR_OOM, "Can't allocate the decoded certificate");
+			return_code = LLCRYPTO_ERROR_OOM;
+		} else if (NULL == certificate) {
 			llcrypto_throw(LLCRYPTO_ERROR, "Bad x509 certificate");
 			return_code = LLCRYPTO_ERROR;
+		} else {
+			// certificate decoded
 		}
 	}
 
@@ -367,10 +383,13 @@ int32_t LLCRYPTO_X509_CERT_IMPL_check_validity(int8_t *cert_data, int32_t cert_d
 	LLCRYPTO_X509_DEBUG_TRACE("%s \n", __func__);
 	int return_code = LLCRYPTO_SUCCESS;
 	DecodedCert *certificate;
-	int32_t check_error;
+	int32_t check_error = LLCRYPTO_WOLFCRYPT_SUCCESS;
 
-	(void)get_x509_certificate_format(cert_data, cert_data_length, &certificate, &check_error);
-	if (NULL == certificate) {
+	int32_t format = get_x509_certificate_format(cert_data, cert_data_length, &certificate, &check_error);
+	if (J_MEMORY_ERROR == format) {
+		llcrypto_throw(LLCRYPTO_ERROR_OOM, "Can't allocate the decoded certificate");
+		return_code = LLCRYPTO_ERROR_OOM;
+	} else if (NULL == certificate) {
 		switch (check_error) {
 		case ASN_AFTER_DATE_E:
 			return_code = J_X509_CERT_EXPIRED_ERROR;

@@ -9,7 +9,7 @@
  * @file
  * @brief LLCRYPTO implementation for WolfCrypt - Cipher (encryption/decryption).
  * @author MicroEJ Developer Team
- * @version 2.0.0
+ * @version 2.0.1
  */
 
 // --------------------------------------------------------------------------------
@@ -105,6 +105,9 @@ typedef struct {
 	int32_t tag_length;
 	int32_t aad_length;
 	uint8_t aad[LLCRYPTO_CIPHER_MAX_AAD_LENGTH];
+	/** Non-zero when the key lives in the PKCS#11 token rather than in RAM. The context is
+	 *  allocated zeroed, so only the label-based paths set it. */
+	uint8_t is_remote_key;
 } LLCRYPTO_CIPHER_ctx;
 
 // --------------------------------------------------------------------------------
@@ -245,6 +248,7 @@ static int LLCRYPTO_CIPHER_aes_init(int32_t transformation_id, void **native_id,
 		} else {
 #ifdef WOLF_PRIVATE_KEY_ID
 			/* PKCS#11 label-based path: key material stays in hardware. */
+			cipher_ctx->is_remote_key = 1u;
 			wolfcrypt_rc = wc_AesInit_Label(&cipher_ctx->wolfcrypt_ctx.aes_ctx, secret_key->label, pHint,
 			                                (int)secret_key->devId);
 			if (LLCRYPTO_WOLFCRYPT_SUCCESS != wolfcrypt_rc) {
@@ -304,6 +308,10 @@ static int LLCRYPTO_CIPHER_aes_ccm_init(int32_t transformation_id, void **native
 	LLCRYPTO_key *key = (LLCRYPTO_key *)key_id;
 	LLCRYPTO_secret_key *secret_key = (LLCRYPTO_secret_key *)key->secret_key;
 
+	/* A token-backed key cannot do CCM: the wolfSSL PKCS#11 crypto callback implements GCM, CBC and CTR only. The
+	 * refusal is returned as LLCRYPTO_ERROR_INVALID_PARAMETER so that Cipher.init() raises the checked exception it
+	 * declares. */
+
 	cipher_ctx = (LLCRYPTO_CIPHER_ctx *)llcrypto_calloc(1, (int32_t)sizeof(LLCRYPTO_CIPHER_ctx) - 1 + AES_BLOCK_SIZE);
 	if (NULL == cipher_ctx) {
 		return_code = LLCRYPTO_ERROR_OOM;
@@ -311,7 +319,6 @@ static int LLCRYPTO_CIPHER_aes_ccm_init(int32_t transformation_id, void **native
 	}
 
 	if (LLCRYPTO_SUCCESS == return_code) {
-		int wolfcrypt_rc;
 		// cppcheck-suppress [misra-c2012-11.4] : Abstract data type for SNI usage
 		cipher_ctx->transformation = (LLCRYPTO_CIPHER_transformation *)transformation_id;
 		cipher_ctx->transformation->set_iv((void *)cipher_ctx, iv, iv_length);
@@ -320,7 +327,7 @@ static int LLCRYPTO_CIPHER_aes_ccm_init(int32_t transformation_id, void **native
 
 		if (NULL != secret_key->key) {
 			/* Raw-bytes path: key material is in RAM. */
-			wolfcrypt_rc = wc_AesInit(&cipher_ctx->wolfcrypt_ctx.aes_ctx, pHint, INVALID_DEVID);
+			int wolfcrypt_rc = wc_AesInit(&cipher_ctx->wolfcrypt_ctx.aes_ctx, pHint, INVALID_DEVID);
 			if (LLCRYPTO_WOLFCRYPT_SUCCESS != wolfcrypt_rc) {
 				return_code = (BAD_FUNC_ARG ==
 				               wolfcrypt_rc) ? (int32_t)LLCRYPTO_ERROR_INVALID_PARAMETER : (int32_t)LLCRYPTO_ERROR;
@@ -337,21 +344,9 @@ static int LLCRYPTO_CIPHER_aes_ccm_init(int32_t transformation_id, void **native
 				}
 			}
 		} else {
-#ifdef WOLF_PRIVATE_KEY_ID
-			/* PKCS#11 label-based path: key material stays in hardware.
-			 * The nonce is supplied per encrypt/decrypt call - no wc_AesCcmSetKey needed. */
-			wolfcrypt_rc = wc_AesInit_Label(&cipher_ctx->wolfcrypt_ctx.aes_ctx, secret_key->label, pHint,
-			                                (int)secret_key->devId);
-			if (LLCRYPTO_WOLFCRYPT_SUCCESS != wolfcrypt_rc) {
-				return_code = (BAD_FUNC_ARG ==
-				               wolfcrypt_rc) ? (int32_t)LLCRYPTO_ERROR_INVALID_PARAMETER : (int32_t)LLCRYPTO_ERROR;
-				LLCRYPTO_CIPHER_DEBUG_TRACE("wc_AesInit_Label() => %s\n", llcrypto_wc_error_message(wolfcrypt_rc));
-			}
-#else
-			/* No key bytes and no PKCS#11 support: the key cannot be used by this cipher. */
+			/* Token-backed key: refused, see the note above. */
 			return_code = (int32_t)LLCRYPTO_ERROR_INVALID_PARAMETER;
-			LLCRYPTO_CIPHER_DEBUG_TRACE("Key material is not available and PKCS#11 support is disabled\n");
-#endif // WOLF_PRIVATE_KEY_ID
+			LLCRYPTO_CIPHER_DEBUG_TRACE("AES/CCM is not available for a key held in the PKCS#11 token\n");
 		}
 	}
 
@@ -436,6 +431,61 @@ static int LLCRYPTO_CIPHER_des3cbc_init(int32_t transformation_id, void **native
 #endif // NO_DES3
 
 /**
+ * @brief Refuses a non-final chunk when the key lives in the PKCS#11 token.
+ *
+ * @note A token-backed key runs through wolfSSL's PKCS#11 crypto callback, which starts and
+ *       finishes a single-part operation per call and never writes the running IV back into the
+ *       wolfcrypt context. A second chunk would therefore restart the chain from the initial IV and
+ *       silently produce wrong output, so streaming is refused instead. A key held in RAM is
+ *       chained by wolfcrypt itself and streams normally.
+ *
+ * @param[in]  cipher_ctx Cipher context to test.
+ * @param[in]  doFinal '1' if this is a final operation, '0' otherwise.
+ *
+ * @return true when the operation was refused and an exception was thrown.
+ */
+static bool reject_streaming_on_remote_key(const LLCRYPTO_CIPHER_ctx *cipher_ctx, uint8_t doFinal) {
+	bool rejected = ((uint8_t)0 == doFinal) && ((uint8_t)0 != cipher_ctx->is_remote_key);
+
+	if (rejected) {
+		LLCRYPTO_CIPHER_DEBUG_TRACE("Token-backed key does not support streaming update()\n");
+		/* Thrown rather than returned: the encrypt/decrypt natives define no error code other than
+		 * ERROR_AEAD_AUTH, so every other negative value is taken for the number of bytes written and
+		 * would corrupt the caller's length arithmetic instead of reporting the refusal. */
+		llcrypto_throw(LLCRYPTO_ERROR, "Token-backed key is one-shot: use a single doFinal()");
+	}
+	return rejected;
+}
+
+/**
+ * @brief Refuses an AES/CBC length that is not a whole number of blocks, for a token-backed key.
+ *
+ * @note AES/CBC/NoPadding leaves the padding to the application, so a length that is not a multiple
+ *       of the block cannot be enciphered. Neither wolfPKCS11 nor wc_AesCbcEncrypt checks this
+ *       (WOLFSSL_AES_CBC_LENGTH_CHECKS is not configured), so the tail would be dropped silently and
+ *       the application would never learn its data was truncated. A padded transformation never
+ *       reaches here unaligned: the crypto library pads in Java before the native call.
+ *
+ * @param[in]  cipher_ctx Cipher context to test.
+ * @param[in]  buffer_length Size of the chunk (in bytes).
+ *
+ * @return true when the operation was refused and an exception was thrown.
+ */
+static bool reject_unaligned_cbc_on_remote_key(const LLCRYPTO_CIPHER_ctx *cipher_ctx,
+                                               int32_t buffer_length) {
+	bool rejected = ((uint8_t)0 != cipher_ctx->is_remote_key)
+	                && (0 != (buffer_length % (int32_t)AES_BLOCK_SIZE));
+
+	if (rejected) {
+		LLCRYPTO_CIPHER_DEBUG_TRACE("AES/CBC length %d is not a multiple of the block size\n",
+		                            (int)buffer_length);
+		/* Thrown for the same reason as in reject_streaming_on_remote_key(). */
+		llcrypto_throw(LLCRYPTO_ERROR, "AES/CBC input must be a whole number of blocks");
+	}
+	return rejected;
+}
+
+/**
  * @brief Decrypts a data buffer with AES and stores them in an output buffer.
  *
  * @param[in]  native_id Pointer to a Wolfcrypt AES native structure.
@@ -452,14 +502,17 @@ static int wolfcrypt_aes_cbc_cipher_decrypt(void *native_id, uint8_t *buffer, in
 	LLCRYPTO_CIPHER_DEBUG_TRACE("%s \n", __func__);
 
 	int return_code = LLCRYPTO_SUCCESS;
-	int wolfcrypt_rc = LLCRYPTO_WOLFCRYPT_SUCCESS;
-	LLCRYPTO_UNUSED_PARAM(doFinal);
 	// cppcheck-suppress [misra-c2012-11.5] : Abstract data type for SNI usage
 	LLCRYPTO_CIPHER_ctx *cipher_ctx = (LLCRYPTO_CIPHER_ctx *)native_id;
 
-	wolfcrypt_rc = wc_AesCbcDecrypt(&cipher_ctx->wolfcrypt_ctx.aes_ctx, output, buffer, buffer_length);
-	if (LLCRYPTO_WOLFCRYPT_SUCCESS != wolfcrypt_rc) {
+	if (reject_streaming_on_remote_key(cipher_ctx, doFinal)
+	    || reject_unaligned_cbc_on_remote_key(cipher_ctx, buffer_length)) {
 		return_code = LLCRYPTO_ERROR;
+	} else {
+		int wolfcrypt_rc = wc_AesCbcDecrypt(&cipher_ctx->wolfcrypt_ctx.aes_ctx, output, buffer, buffer_length);
+		if (LLCRYPTO_WOLFCRYPT_SUCCESS != wolfcrypt_rc) {
+			return_code = LLCRYPTO_ERROR;
+		}
 	}
 
 	return return_code;
@@ -597,15 +650,17 @@ static int wolfcrypt_aes_cbc_cipher_encrypt(void *native_id, uint8_t *buffer, in
                                             uint8_t doFinal) {
 	LLCRYPTO_CIPHER_DEBUG_TRACE("%s()\n", __func__);
 	int return_code = LLCRYPTO_SUCCESS;
-	int wolfcrypt_rc = LLCRYPTO_WOLFCRYPT_SUCCESS;
-	LLCRYPTO_UNUSED_PARAM(doFinal);
 	// cppcheck-suppress [misra-c2012-11.5] : Abstract data type for SNI usage
 	LLCRYPTO_CIPHER_ctx *cipher_ctx = (LLCRYPTO_CIPHER_ctx *)native_id;
 
-	wolfcrypt_rc = wc_AesCbcEncrypt(&cipher_ctx->wolfcrypt_ctx.aes_ctx, output, buffer, buffer_length);
-
-	if (LLCRYPTO_WOLFCRYPT_SUCCESS != wolfcrypt_rc) {
+	if (reject_streaming_on_remote_key(cipher_ctx, doFinal)
+	    || reject_unaligned_cbc_on_remote_key(cipher_ctx, buffer_length)) {
 		return_code = LLCRYPTO_ERROR;
+	} else {
+		int wolfcrypt_rc = wc_AesCbcEncrypt(&cipher_ctx->wolfcrypt_ctx.aes_ctx, output, buffer, buffer_length);
+		if (LLCRYPTO_WOLFCRYPT_SUCCESS != wolfcrypt_rc) {
+			return_code = LLCRYPTO_ERROR;
+		}
 	}
 
 	return return_code;
@@ -656,15 +711,18 @@ static int wolfcrypt_aes_ctr_encrypt(void *native_id, uint8_t *buffer, int32_t b
                                      uint8_t doFinal) {
 	LLCRYPTO_CIPHER_DEBUG_TRACE("%s()\n", __func__);
 	int return_code = LLCRYPTO_SUCCESS;
-	int wolfcrypt_rc = LLCRYPTO_WOLFCRYPT_SUCCESS;
-	LLCRYPTO_UNUSED_PARAM(doFinal);
 	// cppcheck-suppress [misra-c2012-11.5] : Abstract data type for SNI usage
 	LLCRYPTO_CIPHER_ctx *cipher_ctx = (LLCRYPTO_CIPHER_ctx *)native_id;
 
-	wolfcrypt_rc = wc_AesCtrEncrypt(&cipher_ctx->wolfcrypt_ctx.aes_ctx, output, buffer, buffer_length);
-	if (LLCRYPTO_WOLFCRYPT_SUCCESS != wolfcrypt_rc) {
+	/* CTR carries its counter in the same context field CBC uses for the running IV. */
+	if (reject_streaming_on_remote_key(cipher_ctx, doFinal)) {
 		return_code = LLCRYPTO_ERROR;
-		LLCRYPTO_CIPHER_DEBUG_TRACE("wc_AesCtrEncrypt() failed with error %d\n", wolfcrypt_rc);
+	} else {
+		int wolfcrypt_rc = wc_AesCtrEncrypt(&cipher_ctx->wolfcrypt_ctx.aes_ctx, output, buffer, buffer_length);
+		if (LLCRYPTO_WOLFCRYPT_SUCCESS != wolfcrypt_rc) {
+			return_code = LLCRYPTO_ERROR;
+			LLCRYPTO_CIPHER_DEBUG_TRACE("wc_AesCtrEncrypt() failed with error %d\n", wolfcrypt_rc);
+		}
 	}
 
 	return return_code;

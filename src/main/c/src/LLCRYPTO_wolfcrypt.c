@@ -9,7 +9,7 @@
  * @file
  * @brief LLCRYPTO implementation for WolfCrypt - Common functions implementation.
  * @author MicroEJ Developer Team
- * @version 2.0.0
+ * @version 2.0.1
  */
 
 // --------------------------------------------------------------------------------
@@ -30,6 +30,7 @@
 #include <microej.h>
 #include <microej_time.h>
 #include <wolfssl/wolfcrypt/asn_public.h>
+#include <wolfssl/wolfcrypt/error-crypt.h>
 #endif
 
 // --------------------------------------------------------------------------------
@@ -492,7 +493,8 @@ enum wc_HashType llcrypto_sign_get_wc_hash_type(const uint8_t *stdname) {
  * @param[out] cert_object  Pointer pointer to the decoded certificate structure.
  * @param[out]  check_error  Pointer to a variable to store the certificate validation result.
  *
- * @return     format of the encoded certificate:  CERT_DER_FORMAT or CERT_PEM_FORMAT.
+ * @return     format of the encoded certificate:  CERT_DER_FORMAT or CERT_PEM_FORMAT,
+ *             J_MEMORY_ERROR if the native memory is not sufficient, or J_CERT_PARSE_ERROR if the decoding failed.
  *
  */
 int32_t get_x509_certificate_format(int8_t *cert_data, int32_t len, DecodedCert **cert_object,
@@ -527,55 +529,64 @@ int32_t get_x509_certificate_format(int8_t *cert_data, int32_t len, DecodedCert 
 			if (NULL != cert_object) {
 				*cert_object = new_cert;
 			}
+		} else if ((MEMORY_E == wolfcrypt_rc) || (MP_MEM == wolfcrypt_rc)) {
+			/* The native heap is full: a PEM decoding cannot succeed, report the memory error. */
+			LLCRYPTO_X509_DEBUG_TRACE("wc_ParseCert(DER) failed: %s\n", wc_GetErrorString(wolfcrypt_rc));
+			return_code = J_MEMORY_ERROR;
 		} else {
 			LLCRYPTO_X509_DEBUG_TRACE("wc_ParseCert(DER) failed: %s\n", wc_GetErrorString(wolfcrypt_rc));
 			LLCRYPTO_X509_DEBUG_TRACE("Now trying with wc_ParseCert(PEM)...\n");
 		}
-		if (NULL == cert_object) {
+		if ((NULL == cert_object) || (CERT_DER_FORMAT != return_code)) {
+			/* Free the decoded certificate when the caller does not keep it or when the DER parsing failed. */
 			wc_FreeDecodedCert(new_cert);
 			llcrypto_free(new_cert);
+			new_cert = NULL;
 		}
 	}
 
-	if (CERT_DER_FORMAT != return_code) {
+	if (LLCRYPTO_X509_UNKNOWN_FORMAT == return_code) {
 		DerBuffer *der_buffer = NULL;
-		if (NULL == new_cert) {
-			return_code = J_MEMORY_ERROR;
-		} else {
-			/* Convert PEM to DER */
-			wolfcrypt_rc = wc_PemToDer((byte const *)cert_data, len, CERT_TYPE, &der_buffer, pHint, NULL, NULL);
-			if (LLCRYPTO_WOLFCRYPT_SUCCESS == wolfcrypt_rc) {
-				int32_t der_len = der_buffer->length;
-				return_code = CERT_PEM_FORMAT;
-				if (NULL != cert_object) {
-					new_cert = llcrypto_calloc(1, sizeof(DecodedCert));
-					if (NULL == new_cert) {
-						return_code = J_MEMORY_ERROR;
-					} else {
-						/* Initialize the X509 certificate */
-						wc_InitDecodedCert(new_cert, (byte const *)der_buffer->buffer, der_len, pHint);
+		/* Convert PEM to DER */
+		wolfcrypt_rc = wc_PemToDer((byte const *)cert_data, len, CERT_TYPE, &der_buffer, pHint, NULL, NULL);
+		if (LLCRYPTO_WOLFCRYPT_SUCCESS == wolfcrypt_rc) {
+			int32_t der_len = der_buffer->length;
+			return_code = CERT_PEM_FORMAT;
+			if (NULL != cert_object) {
+				new_cert = llcrypto_calloc(1, sizeof(DecodedCert));
+				if (NULL == new_cert) {
+					return_code = J_MEMORY_ERROR;
+				} else {
+					/* Initialize the X509 certificate */
+					wc_InitDecodedCert(new_cert, (byte const *)der_buffer->buffer, der_len, pHint);
 
-						/* Parse the X509 DER certificate */
-						if (NULL == check_error) {
-							wolfcrypt_rc = wc_ParseCert(new_cert, TRUSTED_PEER_TYPE, NO_VERIFY, NULL);
-						} else {
-							wolfcrypt_rc = wc_ParseCert(new_cert, TRUSTED_PEER_TYPE, VERIFY, NULL);
-							*check_error = wolfcrypt_rc;
+					/* Parse the X509 DER certificate */
+					if (NULL == check_error) {
+						wolfcrypt_rc = wc_ParseCert(new_cert, TRUSTED_PEER_TYPE, NO_VERIFY, NULL);
+					} else {
+						wolfcrypt_rc = wc_ParseCert(new_cert, TRUSTED_PEER_TYPE, VERIFY, NULL);
+						*check_error = wolfcrypt_rc;
+					}
+					if (LLCRYPTO_WOLFCRYPT_SUCCESS == wolfcrypt_rc) {
+						*cert_object = new_cert;
+					} else {
+						LLCRYPTO_X509_DEBUG_TRACE("wc_ParseCert(PEM) failed: %s\n", wc_GetErrorString(wolfcrypt_rc));
+						if ((MEMORY_E == wolfcrypt_rc) || (MP_MEM == wolfcrypt_rc)) {
+							return_code = J_MEMORY_ERROR;
 						}
-						if (LLCRYPTO_WOLFCRYPT_SUCCESS == wolfcrypt_rc) {
-							*cert_object = new_cert;
-						} else {
-							LLCRYPTO_X509_DEBUG_TRACE("wc_ParseCert(PEM) failed: %s\n",
-							                          wc_GetErrorString(wolfcrypt_rc));
-						}
+						wc_FreeDecodedCert(new_cert);
+						llcrypto_free(new_cert);
 					}
 				}
-			} else {
-				LLCRYPTO_X509_DEBUG_TRACE("wc_PemToDer() failed: %s\n", wc_GetErrorString(wolfcrypt_rc));
-				return_code = J_CERT_PARSE_ERROR;
 			}
-			wc_FreeDer(&der_buffer);
+		} else if ((MEMORY_E == wolfcrypt_rc) || (MP_MEM == wolfcrypt_rc)) {
+			LLCRYPTO_X509_DEBUG_TRACE("wc_PemToDer() failed: %s\n", wc_GetErrorString(wolfcrypt_rc));
+			return_code = J_MEMORY_ERROR;
+		} else {
+			LLCRYPTO_X509_DEBUG_TRACE("wc_PemToDer() failed: %s\n", wc_GetErrorString(wolfcrypt_rc));
+			return_code = J_CERT_PARSE_ERROR;
 		}
+		wc_FreeDer(&der_buffer);
 	}
 
 	return return_code;

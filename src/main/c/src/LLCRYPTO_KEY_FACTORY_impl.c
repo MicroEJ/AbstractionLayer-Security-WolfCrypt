@@ -9,7 +9,7 @@
  * @file
  * @brief LLCRYPTO implementation for WolfCrypt - Private & Public Key PKCS8 decoding.
  * @author MicroEJ Developer Team
- * @version 2.0.0
+ * @version 2.0.1
  */
 
 // --------------------------------------------------------------------------------

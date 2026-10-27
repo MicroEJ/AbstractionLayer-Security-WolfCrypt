@@ -1,4 +1,4 @@
-![ARCH](https://shields.microej.com/endpoint?url=https://repository.microej.com/packages/badges/net_13.json)
+![CRYPTO](https://shields.microej.com/endpoint?url=https://repository.microej.com/packages/badges/crypto_2.json)
 
 # Abstraction Layer Crypto with wolfCrypt (wolfSSL) stack.
 
@@ -41,8 +41,10 @@ Here is a non exhaustive list of tested environments:
 - Compilers / Integrated Development Environments:
   - IAR Embedded Workbench 9.50.1
   - IAR Embedded Workbench 9.60.4
+  - IAR Embedded Workbench 9.70.4
 - Stack versions:
   - WolfSSL 5.8.4
+  - WolfSSL 5.9.2
 
 # MISRA Compliance
 
@@ -81,7 +83,9 @@ N/A
 
 # Restrictions
 
-None.
+- Keys held in a PKCS#11 token: only AES and EC keys can be addressed by their label, RSA keys cannot. On such a key, the wolfSSL PKCS#11 crypto callback runs one single-part operation per call, so an AES/CBC or AES/CTR cipher accepts a single `doFinal()` and refuses `update()`, an AES/CBC input must be a whole number of blocks, and AES/CCM is not available.
+- AES Key Wrap is not implemented: the natives are weak stubs that report the transformation as unsupported.
+- The external key store is not implemented: the natives are weak stubs that a VEE Port holding a key store overrides.
 
 ---
 _Copyright 2025-2026 MicroEJ Corp. All rights reserved._

@@ -9,7 +9,7 @@
  * @file
  * @brief LLCRYPTO WolfCrypt - Common.
  * @author MicroEJ Developer Team
- * @version 2.0.0
+ * @version 2.0.1
  */
 
 #ifndef LLCRYPTO_COMMON_H

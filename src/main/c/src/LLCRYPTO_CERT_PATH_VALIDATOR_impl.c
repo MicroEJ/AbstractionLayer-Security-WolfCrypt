@@ -9,7 +9,7 @@
  * @file
  * @brief LLCRYPTO implementation for WolfCrypt - Cert Path Validator.
  * @author MicroEJ Developer Team
- * @version 2.0.0
+ * @version 2.0.1
  */
 
 // This implementation is inspired from the PKIX CertPathValidator implementation from wolfcrypt-jni
@@ -52,7 +52,10 @@ static void LLCRYPTO_CERT_PATH_VALIDATOR_IMPL_append_trusted_certificate_job(MIC
 	WOLFSSL_CERT_MANAGER *cm = cert_path_validator->cm;
 	int32_t format = get_x509_certificate_format((int8_t *)x509, len, NULL, NULL);
 
-	if ((format != CERT_PEM_FORMAT) && (format != CERT_DER_FORMAT)) {
+	if (J_MEMORY_ERROR == format) {
+		// Report the allocation failure as an OOM so that the Java side retries after a GC.
+		params->rc = LLCRYPTO_ERROR_OOM;
+	} else if ((format != CERT_PEM_FORMAT) && (format != CERT_DER_FORMAT)) {
 		LLCRYPTO_CERT_PATH_VALIDATOR_DEBUG_TRACE("get_x509_certificate_format() failed with error: %d\n", format);
 		params->rc = LLCRYPTO_ERROR;
 	} else {
@@ -105,7 +108,10 @@ static void LLCRYPTO_CERT_PATH_VALIDATOR_IMPL_append_cert_to_path_job(MICROEJ_AS
 	WOLFSSL_CERT_MANAGER *cm = cert_path_validator->cm;
 	int32_t format = get_x509_certificate_format((int8_t *)x509, len, NULL, NULL);
 
-	if ((format != CERT_PEM_FORMAT) && (format != CERT_DER_FORMAT)) {
+	if (J_MEMORY_ERROR == format) {
+		// Report the allocation failure as an OOM so that the Java side retries after a GC.
+		params->rc = LLCRYPTO_ERROR_OOM;
+	} else if ((format != CERT_PEM_FORMAT) && (format != CERT_DER_FORMAT)) {
 		LLCRYPTO_CERT_PATH_VALIDATOR_DEBUG_TRACE("get_x509_certificate_format() failed with error: %d\n", format);
 		params->rc = LLCRYPTO_ERROR;
 	} else {
